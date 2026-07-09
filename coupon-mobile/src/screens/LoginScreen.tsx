@@ -13,6 +13,7 @@ import {
 import type { LoginScreenProps } from '../navigation/types';
 import { useAuth } from '../context/AuthContext';
 import { PrimaryButton } from '../components/PrimaryButton';
+import { AppLogo } from '../components/AppLogo';
 import { API_BASE_URL } from '../config';
 import { colors, radius, spacing } from '../theme';
 
@@ -50,9 +51,7 @@ export function LoginScreen({}: LoginScreenProps) {
         contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="handled">
         <View style={styles.hero}>
-          <View style={styles.logoCircle}>
-            <Text style={styles.logoText}>PT</Text>
-          </View>
+          <AppLogo size={128} style={styles.logo} />
           <Text style={styles.brand}>Plateform-Test</Text>
           <Text style={styles.tagline}>Gestion des coupons opérateur</Text>
         </View>
@@ -63,9 +62,9 @@ export function LoginScreen({}: LoginScreenProps) {
             Accédez à votre espace pour valider les coupons.
           </Text>
 
-          {__DEV__ ? (
+          {/* {__DEV__ ? (
             <Text style={styles.devInfo}>API : {API_BASE_URL}</Text>
-          ) : null}
+          ) : null} */}
 
           {error ? (
             <View style={styles.errorBox}>
@@ -114,16 +113,7 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
   },
   hero: { alignItems: 'center', marginBottom: spacing.xl },
-  logoCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: radius.full,
-    backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.md,
-  },
-  logoText: { color: colors.white, fontSize: 28, fontWeight: '800' },
+  logo: { marginBottom: spacing.md },
   brand: { fontSize: 26, fontWeight: '700', color: colors.text },
   tagline: { fontSize: 14, color: colors.textSecondary, marginTop: spacing.xs },
   card: {

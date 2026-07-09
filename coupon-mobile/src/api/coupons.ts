@@ -2,6 +2,11 @@ import { apiClient } from './client';
 import type { ApiResponse, CodeName, Coupon } from '../types';
 
 export const couponsApi = {
+  async getPending(): Promise<ApiResponse<Coupon[]>> {
+    const { data } = await apiClient.get<ApiResponse<Coupon[]>>('/coupons/pending');
+    return data;
+  },
+
   async getAll(): Promise<ApiResponse<Coupon[]>> {
     const { data } = await apiClient.get<ApiResponse<Coupon[]>>('/coupons');
     return data;

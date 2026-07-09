@@ -1,9 +1,17 @@
-import notifee, { AndroidImportance, EventType } from '@notifee/react-native';
+import notifee, {
+  AndroidCategory,
+  AndroidImportance,
+  AndroidVisibility,
+  EventType,
+} from '@notifee/react-native';
 import messaging, { FirebaseMessagingTypes } from '@react-native-firebase/messaging';
 import { PermissionsAndroid, Platform } from 'react-native';
 import { authApi } from '../api/auth';
 
-const CHANNEL_ID = 'coupons';
+const CHANNEL_ID = 'coupons_v3';
+
+/** Double vibration style WhatsApp : buzz, pause, buzz (Notifee : valeurs paires positives) */
+const DOUBLE_VIBRATION_NOTIFEE = [250, 200, 250, 200];
 
 type RemoteMessage = FirebaseMessagingTypes.RemoteMessage;
 
@@ -14,6 +22,8 @@ export async function ensureNotificationChannel(): Promise<string> {
     importance: AndroidImportance.HIGH,
     sound: 'default',
     vibration: true,
+    vibrationPattern: DOUBLE_VIBRATION_NOTIFEE,
+    visibility: AndroidVisibility.PUBLIC,
     badge: true,
   });
 }
@@ -38,7 +48,11 @@ export async function displayCouponNotification(
       smallIcon: 'ic_notification',
       pressAction: { id: 'default', launchActivity: 'default' },
       importance: AndroidImportance.HIGH,
+      visibility: AndroidVisibility.PUBLIC,
+      category: AndroidCategory.MESSAGE,
       sound: 'default',
+      vibrationPattern: DOUBLE_VIBRATION_NOTIFEE,
+      lightUpScreen: true,
       autoCancel: true,
     },
   });

@@ -63,7 +63,7 @@ export function ProfileScreen() {
         <Text style={styles.role}>Opérateur Plateform-Test</Text>
 
         <View style={styles.card}>
-          <InfoRow label="ID utilisateur" value={String(user.id)} />
+         
           <InfoRow label="Nom d'utilisateur" value={user.username} />
           <InfoRow
             label="Membre depuis"
