@@ -1,9 +1,14 @@
-import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import type { Coupon, CouponType } from '../types';
-import { colors, radius, spacing } from '../theme';
+import React, { useMemo, useState } from 'react';
+import { Alert, StyleSheet, Text, View } from 'react-native';
+import { couponsApi } from '../api/coupons';
+import type { CodeDecision } from './CodeRow';
+import { CodeRow } from './CodeRow';
 import { Icon } from './Icon';
+import { PrimaryButton } from './PrimaryButton';
 import { StatusBadge } from './StatusBadge';
+import type { CodeName, Coupon, CouponType } from '../types';
+import { allCodesReviewed, getExistingCodeFields } from '../utils/couponCodes';
+import { colors, radius, spacing } from '../theme';
 
 const typeIcons: Partial<Record<CouponType, string>> = {
   NEOSURF: 'credit-card',
@@ -20,10 +25,22 @@ const typeIcons: Partial<Record<CouponType, string>> = {
 
 interface CouponCardProps {
   coupon: Coupon;
-  onPress: () => void;
+  reviewedCodes: Set<CodeName>;
+  onCodeReviewed: (codeName: CodeName, decision: CodeDecision) => void;
+  onCouponUpdated: (coupon: Coupon) => void;
 }
 
-export function CouponCard({ coupon, onPress }: CouponCardProps) {
+export function CouponCard({
+  coupon,
+  reviewedCodes,
+  onCodeReviewed,
+  onCouponUpdated,
+}: CouponCardProps) {
+  const [actionLoading, setActionLoading] = useState<CodeName | 'confirm' | null>(null);
+  const [codeDecisions, setCodeDecisions] = useState<Partial<Record<CodeName, CodeDecision>>>(
+    {},
+  );
+
   const date = new Date(coupon.createdAt).toLocaleString('fr-FR', {
     day: '2-digit',
     month: 'short',
@@ -32,11 +49,100 @@ export function CouponCard({ coupon, onPress }: CouponCardProps) {
   });
 
   const iconName = typeIcons[coupon.type] || 'confirmation-number';
+  const isPending = coupon.status === 'pending';
+  const existingCodes = useMemo(() => getExistingCodeFields(coupon), [coupon]);
+  const canConfirm = isPending && allCodesReviewed(coupon, reviewedCodes);
+
+  const getDecision = (codeName: CodeName, validKey: keyof Coupon): CodeDecision => {
+    if (codeDecisions[codeName]) return codeDecisions[codeName]!;
+    if (reviewedCodes.has(codeName)) {
+      return coupon[validKey] ? 'validated' : 'rejected';
+    }
+    return null;
+  };
+
+  const handleCodeAction = (
+    codeName: CodeName,
+    label: string,
+    action: 'validate' | 'invalidate',
+  ) => {
+    const isValidate = action === 'validate';
+    Alert.alert(
+      isValidate ? `Valider ${label} ?` : `Rejeter ${label} ?`,
+      isValidate
+        ? 'Ce code sera marqué comme valide.'
+        : 'Ce code sera marqué comme rejeté.',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Confirmer',
+          style: isValidate ? 'default' : 'destructive',
+          onPress: async () => {
+            setActionLoading(codeName);
+            try {
+              const response = isValidate
+                ? await couponsApi.validateCode(coupon.id, codeName)
+                : await couponsApi.invalidateCode(coupon.id, codeName);
+
+              if (response.success) {
+                const decision: CodeDecision = isValidate ? 'validated' : 'rejected';
+                setCodeDecisions((prev) => ({ ...prev, [codeName]: decision }));
+                onCodeReviewed(codeName, decision);
+
+                const payload = response.data as { coupon?: Coupon } | undefined;
+                if (payload?.coupon) {
+                  onCouponUpdated(payload.coupon);
+                } else {
+                  onCouponUpdated({
+                    ...coupon,
+                    [`${codeName}Valid`]: isValidate,
+                  } as Coupon);
+                }
+              } else {
+                Alert.alert('Erreur', response.message || response.error || 'Action échouée.');
+              }
+            } catch {
+              Alert.alert('Erreur', 'Erreur réseau.');
+            } finally {
+              setActionLoading(null);
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  const handleConfirmCoupon = () => {
+    Alert.alert(
+      'Confirmer le coupon ?',
+      'Cette action finalise la vérification du coupon selon les codes traités.',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Confirmer',
+          onPress: async () => {
+            setActionLoading('confirm');
+            try {
+              const response = await couponsApi.validateCoupon(coupon.id);
+              if (response.success && response.data) {
+                onCouponUpdated(response.data);
+                Alert.alert('Succès', response.message || 'Coupon confirmé.');
+              } else {
+                Alert.alert('Erreur', response.message || 'Action échouée.');
+              }
+            } catch {
+              Alert.alert('Erreur', 'Erreur réseau.');
+            } finally {
+              setActionLoading(null);
+            }
+          },
+        },
+      ],
+    );
+  };
 
   return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [styles.card, pressed && styles.pressed]}>
+    <View style={styles.card}>
       <View style={styles.row}>
         <View style={styles.iconWrap}>
           <Icon name={iconName} size={22} color={colors.primary} />
@@ -60,11 +166,56 @@ export function CouponCard({ coupon, onPress }: CouponCardProps) {
           <View style={styles.footer}>
             <Text style={styles.id}>#{coupon.id}</Text>
             <Text style={styles.date}>{date}</Text>
-            <Icon name="chevron-right" size={18} color={colors.textSecondary} />
           </View>
         </View>
       </View>
-    </Pressable>
+
+      {existingCodes.length > 0 ? (
+        <View style={styles.codesSection}>
+          <Text style={styles.sectionTitle}>
+            {isPending ? 'Codes à vérifier' : 'Codes'}
+          </Text>
+          {existingCodes.map(({ name, label, key, validKey }) => (
+            <CodeRow
+              key={name}
+              label={label}
+              codeName={name}
+              value={coupon[key] as string | null}
+              decision={
+                isPending
+                  ? getDecision(name, validKey)
+                  : coupon[validKey]
+                    ? 'validated'
+                    : 'rejected'
+              }
+              reviewed={isPending ? reviewedCodes.has(name) : true}
+              readOnly={!isPending}
+              loading={actionLoading === name}
+              onValidate={() => handleCodeAction(name, label, 'validate')}
+              onReject={() => handleCodeAction(name, label, 'invalidate')}
+            />
+          ))}
+        </View>
+      ) : null}
+
+      {isPending && existingCodes.length > 0 ? (
+        <View style={styles.confirmSection}>
+          <PrimaryButton
+            title={canConfirm ? 'Confirmer le coupon' : 'Traiter les codes d\'abord'}
+            onPress={handleConfirmCoupon}
+            loading={actionLoading === 'confirm'}
+            disabled={!canConfirm}
+            style={styles.confirmBtn}
+          />
+        </View>
+      ) : null}
+
+      {!isPending && coupon.verificationDate ? (
+        <Text style={styles.verifiedMeta}>
+          Traité le {new Date(coupon.verificationDate).toLocaleString('fr-FR')}
+        </Text>
+      ) : null}
+    </View>
   );
 }
 
@@ -73,12 +224,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderRadius: radius.md,
     padding: spacing.md,
-    marginBottom: spacing.sm,
+    marginBottom: spacing.md,
     borderWidth: 1,
     borderColor: colors.border,
     elevation: 1,
   },
-  pressed: { opacity: 0.92 },
   row: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -130,10 +280,34 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   date: {
-    flex: 1,
-    textAlign: 'right',
     fontSize: 11,
     color: colors.textSecondary,
-    marginRight: spacing.xs,
+  },
+  codesSection: {
+    marginTop: spacing.sm,
+    paddingTop: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  sectionTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: spacing.xs,
+  },
+  confirmSection: {
+    marginTop: spacing.sm,
+    paddingTop: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  confirmBtn: {
+    minHeight: 44,
+  },
+  verifiedMeta: {
+    marginTop: spacing.sm,
+    fontSize: 12,
+    color: colors.textSecondary,
+    textAlign: 'center',
   },
 });

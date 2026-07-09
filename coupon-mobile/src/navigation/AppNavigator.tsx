@@ -1,12 +1,11 @@
 import React, { useEffect } from 'react';
-import { ActivityIndicator, Alert, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useAuth } from '../context/AuthContext';
 import { LoginScreen } from '../screens/LoginScreen';
 import { HomeScreen } from '../screens/HomeScreen';
-import { CouponDetailScreen } from '../screens/CouponDetailScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
 import { setupNotificationHandlers } from '../services/notifications';
 import type {
@@ -40,15 +39,6 @@ function CouponsNavigator() {
         name="HomeList"
         component={HomeScreen}
         options={{ headerShown: false }}
-      />
-      <HomeStack.Screen
-        name="CouponDetail"
-        component={CouponDetailScreen}
-        options={{
-          title: 'Détail coupon',
-          headerStyle: { backgroundColor: colors.surface },
-          headerTintColor: colors.primary,
-        }}
       />
     </HomeStack.Navigator>
   );
@@ -115,22 +105,7 @@ function RootNavigator() {
 
 export function AppNavigator() {
   useEffect(() => {
-    const unsubscribe = setupNotificationHandlers(
-      (couponId) => {
-        Alert.alert(
-          'Nouveau coupon',
-          `Coupon #${couponId} reçu.`,
-          [
-            { text: 'Plus tard', style: 'cancel' },
-            {
-              text: 'Voir',
-              onPress: () => navigateToCoupon(Number(couponId)),
-            },
-          ],
-        );
-      },
-      (couponId) => navigateToCoupon(Number(couponId)),
-    );
+    const unsubscribe = setupNotificationHandlers(navigateToCouponsList);
     return unsubscribe;
   }, []);
 
@@ -141,20 +116,12 @@ export function AppNavigator() {
   );
 }
 
-function navigateToCoupon(couponId: number) {
+function navigateToCouponsList() {
   if (!navigationRef.isReady()) return;
-  navigationRef.navigate('Main');
-  setTimeout(() => {
-    if (navigationRef.isReady()) {
-      navigationRef.navigate('Main', {
-        screen: 'Coupons',
-        params: {
-          screen: 'CouponDetail',
-          params: { couponId },
-        },
-      } as never);
-    }
-  }, 300);
+  navigationRef.navigate('Main', {
+    screen: 'Coupons',
+    params: { screen: 'HomeList' },
+  } as never);
 }
 
 const styles = StyleSheet.create({

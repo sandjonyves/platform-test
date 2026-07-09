@@ -30,7 +30,8 @@ export function PrimaryButton({
       style={({ pressed }) => [
         styles.button,
         (disabled || loading) && styles.disabled,
-        pressed && styles.pressed,
+        disabled && styles.buttonDisabled,
+        pressed && !disabled && !loading && styles.pressed,
         style,
       ]}>
       {loading ? (
@@ -56,7 +57,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primaryDark,
   },
   disabled: {
-    opacity: 0.6,
+    opacity: 0.55,
+  },
+  buttonDisabled: {
+    backgroundColor: colors.textSecondary,
   },
   text: {
     color: colors.white,

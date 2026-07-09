@@ -7,7 +7,6 @@ export type AuthStackParamList = {
 
 export type HomeStackParamList = {
   HomeList: undefined;
-  CouponDetail: { couponId: number };
 };
 
 export type MainTabParamList = {
@@ -21,9 +20,5 @@ export type RootStackParamList = {
 };
 
 export type LoginScreenProps = NativeStackScreenProps<AuthStackParamList, 'Login'>;
-export type CouponDetailScreenProps = NativeStackScreenProps<
-  HomeStackParamList,
-  'CouponDetail'
->;
 
 export type CouponCounts = Record<CouponFilter, number>;

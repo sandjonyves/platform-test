@@ -222,7 +222,11 @@ const createCoupon = async (req, res) => {
     console.log('Coupon created successfully with ID:', coupon.id);
     console.log('Created coupon data:', coupon.toJSON());
 
-    sendNewCouponNotification(coupon).catch((err) =>
+    sendNewCouponNotification(coupon).then((result) => {
+      if (!result.success) {
+        console.warn('FCM notification:', result.message || 'échec envoi');
+      }
+    }).catch((err) =>
       console.error('FCM notification error:', err.message)
     );
 

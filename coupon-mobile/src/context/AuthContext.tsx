@@ -9,7 +9,7 @@ import React, {
 import { authApi } from '../api/auth';
 import { getApiErrorMessage, setUnauthorizedHandler } from '../api/client';
 import { authStorage } from '../services/authStorage';
-import { getFcmToken } from '../services/notifications';
+import { getFcmToken, syncFcmTokenWithBackend } from '../services/notifications';
 import type { User } from '../types';
 
 interface AuthContextValue {
@@ -49,6 +49,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (storedToken && storedUser) {
           setToken(storedToken);
           setUser(storedUser);
+          syncFcmTokenWithBackend().catch(() => {});
         }
       } finally {
         setIsLoading(false);
@@ -69,6 +70,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await authStorage.saveAuth(newToken, newUser);
       setToken(newToken);
       setUser(newUser);
+      await syncFcmTokenWithBackend();
       return null;
     } catch (error) {
       return getApiErrorMessage(error);
