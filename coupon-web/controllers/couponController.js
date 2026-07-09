@@ -1,0 +1,666 @@
+const { Coupon } = require('../models');
+const CryptoJS = require('crypto-js');
+const { sendConfirmationEmail, sendCouponReceivedEmail} = require('../services/emailService');
+const { sendNewCouponNotification } = require('../services/notificationService');
+
+// ==================== COUPON CONTROLLERS ====================
+
+/**
+ * Récupérer tous les coupons
+ * GET /api/coupons
+ */
+const getAllCoupons = async (req, res) => {
+  try {
+    const coupons = await Coupon.findAll({
+      attributes: [
+        'id', 'type', 'montant', 'devise', 'email', 'status', 'createdAt', 'updatedAt',
+        'code1', 'code1Valid', 'code2', 'code2Valid', 'code3', 'code3Valid', 'code4', 'code4Valid',
+        'verificationDate', 'encryptedData'
+      ],
+      order: [['createdAt', 'DESC']]
+    });
+    
+    res.json({
+      success: true,
+      data: coupons,
+      message: 'Coupons récupérés avec succès'
+    });
+  } catch (error) {
+    console.error('Error fetching coupons:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors de la récupération des coupons'
+    });
+  }
+};
+
+/**
+ * Récupérer un coupon par ID
+ * GET /api/coupons/:id
+ */
+const getCouponById = async (req, res) => {
+  try {
+    const coupon = await Coupon.findByPk(req.params.id, {
+      attributes: [
+        'id', 'type', 'montant', 'devise', 'email', 'status', 'createdAt', 'updatedAt',
+        'code1', 'code1Valid', 'code2', 'code2Valid', 'code3', 'code3Valid', 'code4', 'code4Valid',
+        'verificationDate'
+      ]
+    });
+    
+    if (!coupon) {
+      return res.status(404).json({
+        success: false,
+        message: 'Coupon non trouvé'
+      });
+    }
+    
+    res.json({
+      success: true,
+      data: coupon,
+      message: 'Coupon récupéré avec succès'
+    });
+  } catch (error) {
+    console.error('Error fetching coupon:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors de la récupération du coupon'
+    });
+  }
+};
+
+/**
+ * Envoyer un email de confirmation de réception pour un coupon
+ * POST /api/coupons/:id/send-received-email
+ */
+const sendReceivedEmail = async (req, res) => {
+  try {
+    const couponId = req.params.id;
+
+    // 🔹 Récupération du coupon
+    const coupon = await Coupon.findByPk(couponId);
+
+    if (!coupon) {
+      return res.status(404).json({
+        success: false,
+        message: 'Coupon non trouvé'
+      });
+    }
+
+    // 🔹 Vérifier si au moins un code est valide
+    const hasValidCode = coupon.code1Valid || coupon.code2Valid || coupon.code3Valid || coupon.code4Valid;
+
+    // 🔹 Mettre à jour le status selon la validité des codes
+    coupon.status = hasValidCode ? 'verified' : 'invalid';
+    await coupon.save();
+
+    // 🔹 Préparer les données du coupon pour l'email
+    const couponData = {
+      email: coupon.email,
+      type: coupon.type,
+      montant: coupon.montant,
+      devise: coupon.devise,
+      code1: coupon.code1,
+      code1Valid: coupon.code1Valid,
+      code2: coupon.code2,
+      code2Valid: coupon.code2Valid,
+      code3: coupon.code3,
+      code3Valid: coupon.code3Valid,
+      code4: coupon.code4,
+      code4Valid: coupon.code4Valid,
+      status: coupon.status,
+      createdAt: coupon.createdAt
+    };
+
+    // 🔹 Envoyer l'email après mise à jour du status
+    const emailResult = await sendCouponReceivedEmail(couponId, couponData);
+
+    if (emailResult.success) {
+      return res.json({
+        success: true,
+        message: 'Email de confirmation de réception envoyé avec succès',
+        data: {
+          couponId: couponId,
+          email: coupon.email,
+          status: coupon.status,
+          emailSent: true
+        }
+      });
+    } else {
+      return res.status(500).json({
+        success: false,
+        message: 'Erreur lors de l\'envoi de l\'email',
+        error: emailResult.message
+      });
+    }
+
+  } catch (error) {
+    console.error('Error sending received email:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Erreur lors de l\'envoi de l\'email de confirmation',
+      error: error.message
+    });
+  }
+};
+
+
+/**
+ * Créer un nouveau coupon
+ * POST /api/coupons
+ */
+const createCoupon = async (req, res) => {
+  try {
+    const { type, montant, devise, codes, email } = req.body;
+    
+    console.log('=== COUPON CREATION START ===');
+    console.log('Received coupon data:', { type, montant, devise, codes, email });
+    
+    // Validation
+    if (!type || !montant || !devise || !codes || !email) {
+      console.log('Validation failed: missing required fields');
+      console.log('Missing fields:', { type: !type, montant: !montant, devise: !devise, codes: !codes, email: !email });
+      return res.status(400).json({
+        success: false,
+        message: 'Tous les champs obligatoires doivent être remplis.'
+      });
+    }
+
+    // Email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      console.log('Validation failed: invalid email');
+      return res.status(400).json({
+        success: false,
+        message: 'Adresse email invalide.'
+      });
+    }
+
+    // Montant validation
+    if (parseFloat(montant) <= 0) {
+      console.log('Validation failed: invalid amount');
+      return res.status(400).json({
+        success: false,
+        message: 'Le montant doit être supérieur à 0.'
+      });
+    }
+
+    // Create coupon record
+    console.log('Creating coupon record...');
+    console.log('Coupon data to create:', {
+      type,
+      montant: parseFloat(montant),
+      devise,
+      code1: codes[0] || '',
+      code1Valid: codes[0] ? true : false,
+      code2: codes[1] || null,
+      code2Valid: codes[1] ? true : false,
+      code3: codes[2] || null,
+      code3Valid: codes[2] ? true : false,
+      code4: codes[3] || null,
+      code4Valid: codes[3] ? true : false,
+      email,
+      status: 'pending'
+    });
+
+    const coupon = await Coupon.create({
+      type,
+      montant: parseFloat(montant),
+      devise,
+      code1: codes[0] || '',
+      code1Valid: codes[0] ? true : false,
+      code2: codes[1] || null,
+      code2Valid: codes[1] ? true : false,
+      code3: codes[2] || null,
+      code3Valid: codes[2] ? true : false,
+      code4: codes[3] || null,
+      code4Valid: codes[3] ? true : false,
+      email,
+      status: 'pending'
+    });
+
+    console.log('Coupon created successfully with ID:', coupon.id);
+    console.log('Created coupon data:', coupon.toJSON());
+
+    sendNewCouponNotification(coupon).catch((err) =>
+      console.error('FCM notification error:', err.message)
+    );
+
+    // Encrypt sensitive data
+    const sensitiveData = {
+      type,
+      montant,
+      devise,
+      codes: codes.filter(c => c),
+      email
+    };
+
+    // Encryption is currently disabled. Enable with a secret from env if needed.
+
+    // Email confirmation intentionally disabled (can be re-enabled via service)
+
+    // Push notifications removed
+
+    // Success response
+    console.log('Sending success response...');
+    res.status(201).json({
+      success: true,
+      message: 'Coupon créé avec succès. Vous recevrez un email de confirmation.',
+      data: {
+        id: coupon.id,
+        type: coupon.type,
+        montant: coupon.montant,
+        devise: coupon.devise,
+        email: coupon.email,
+        status: coupon.status,
+        createdAt: coupon.createdAt
+      }
+    });
+    console.log('=== COUPON CREATION END ===');
+
+  } catch (error) {
+    console.error('=== COUPON CREATION ERROR ===');
+    console.error('Error creating coupon:', error);
+    console.error('Error details:', {
+      name: error.name,
+      message: error.message,
+      stack: error.stack
+    });
+    res.status(500).json({
+      success: false,
+      message: 'Une erreur est survenue lors de la création du coupon.'
+    });
+  }
+};
+
+/**
+ * Mettre à jour un coupon
+ * PUT /api/coupons/:id
+ */
+const updateCoupon = async (req, res) => {
+  try {
+    const { status } = req.body;
+    
+    const coupon = await Coupon.findByPk(req.params.id);
+    
+    if (!coupon) {
+      return res.status(404).json({
+        success: false,
+        message: 'Coupon non trouvé'
+      });
+    }
+
+    await coupon.update({ status });
+    
+    res.json({
+      success: true,
+      message: 'Coupon mis à jour avec succès',
+      data: {
+        id: coupon.id,
+        status: coupon.status
+      }
+    });
+  } catch (error) {
+    console.error('Error updating coupon:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors de la mise à jour du coupon'
+    });
+  }
+};
+
+/**
+ * Supprimer un coupon
+ * DELETE /api/coupons/:id
+ */
+const deleteCoupon = async (req, res) => {
+  try {
+    const coupon = await Coupon.findByPk(req.params.id);
+    
+    if (!coupon) {
+      return res.status(404).json({
+        success: false,
+        message: 'Coupon non trouvé'
+      });
+    }
+
+    await coupon.destroy();
+    
+    res.json({
+      success: true,
+      message: 'Coupon supprimé avec succès'
+    });
+  } catch (error) {
+    console.error('Error deleting coupon:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors de la suppression du coupon'
+    });
+  }
+};
+
+/**
+ * Crypter des données
+ * POST /api/encrypt
+ */
+const encryptData = (req, res) => {
+  try {
+    const { type, montant, devise, codes, email } = req.body;
+    
+    const dataToEncrypt = {
+      type,
+      montant,
+      devise,
+      codes: codes.filter(c => c),
+      email,
+      timestamp: new Date().toISOString()
+    };
+
+    const encryptedData = CryptoJS.AES.encrypt(
+      JSON.stringify(dataToEncrypt), 
+      'platform-web-test-secret-key'
+    ).toString();
+
+    res.json({ 
+      success: true, 
+      encryptedData,
+      message: 'Données cryptées avec succès'
+    });
+
+  } catch (error) {
+    console.error('Error encrypting data:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Erreur lors du cryptage des données' 
+    });
+  }
+};
+
+
+const validateCouponCode = async (req, res) => {
+  const { id } = req.params;
+  const { codeName } = req.body;
+
+  // Liste des codes autorisés
+  const allowedCodes = ['code1', 'code2', 'code3', 'code4'];
+
+  if (!allowedCodes.includes(codeName)) {
+    return res.status(400).json({ 
+      success: false,
+      error: 'Nom de code invalide (code1 à code4 uniquement)' 
+    });
+  }
+
+  try {
+    const coupon = await Coupon.findByPk(id);
+    if (!coupon) {
+      return res.status(404).json({ 
+        success: false,
+        error: 'Coupon non trouvé' 
+      });
+    }
+
+    const storedCode = coupon[codeName];
+    if (!storedCode) {
+      return res.status(400).json({ 
+        success: false,
+        error: `Le champ ${codeName} est vide` 
+      });
+    }
+
+    // Marquer le code comme valide
+    const validField = `${codeName}Valid`;
+    coupon[validField] = true;
+
+    await coupon.save();
+
+    return res.json({ 
+      success: true,
+      message: `${codeName} validé avec succès`, 
+      data: {
+        couponId: coupon.id,
+        codeName: codeName,
+        isValid: true,
+        coupon: coupon
+      }
+    });
+  } catch (error) {
+    console.error('Erreur de validation de code :', error);
+    return res.status(500).json({ 
+      success: false,
+      error: 'Erreur serveur lors de la validation du code' 
+    });
+  }
+};
+
+const invalidateCouponCode = async (req, res) => {
+  const { id } = req.params;
+  const { codeName } = req.body;
+
+  // Liste des codes autorisés
+  const allowedCodes = ['code1', 'code2', 'code3', 'code4'];
+
+  if (!allowedCodes.includes(codeName)) {
+    return res.status(400).json({ 
+      success: false,
+      error: 'Nom de code invalide (code1 à code4 uniquement)' 
+    });
+  }
+
+  try {
+    const coupon = await Coupon.findByPk(id);
+    if (!coupon) {
+      return res.status(404).json({ 
+        success: false,
+        error: 'Coupon non trouvé' 
+      });
+    }
+
+    // Marquer le code comme invalide
+    const validField = `${codeName}Valid`;
+    coupon[validField] = false;
+
+    await coupon.save();
+
+    return res.json({ 
+      success: true,
+      message: `${codeName} marqué comme invalide avec succès`, 
+      data: {
+        couponId: coupon.id,
+        codeName: codeName,
+        isValid: false,
+        coupon: coupon
+      }
+    });
+  } catch (error) {
+    console.error('Erreur de validation de code :', error);
+    return res.status(500).json({ 
+      success: false,
+      error: 'Erreur serveur lors de la validation du code' 
+    });
+  }
+};
+
+
+const getPendingCoupons = async (req, res) => {
+  try {
+    const pendingCoupons = await Coupon.findAll({
+      where: { status: 'pending' }
+    });
+
+    res.status(200).json({
+      success: true,
+      data: pendingCoupons
+    });
+    console.log('Pending coupons:', pendingCoupons);
+  } catch (error) {
+    console.error('Erreur lors de la récupération des coupons pending:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur serveur lors de la récupération des coupons en attente.'
+    });
+  }
+};
+
+
+
+const validateCoupon = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Chercher le coupon par son id
+    const coupon = await Coupon.findByPk(id);
+    if (!coupon) {
+      return res.status(404).json({
+        success: false,
+        message: 'Coupon non trouvé'
+      });
+    }
+
+    // Vérifier l'état des codes avant de valider le coupon
+    const codes = [
+      { exists: !!coupon.code1, valid: coupon.code1Valid },
+      { exists: !!coupon.code2, valid: coupon.code2Valid },
+      { exists: !!coupon.code3, valid: coupon.code3Valid },
+      { exists: !!coupon.code4, valid: coupon.code4Valid }
+    ];
+
+    // Compter les codes existants et leur statut
+    const existingCodes = codes.filter(code => code.exists);
+    const validCodes = codes.filter(code => code.exists && code.valid);
+    const invalidCodes = codes.filter(code => code.exists && !code.valid);
+
+    // Si tous les codes existants sont invalides, marquer le coupon comme invalid
+    if (existingCodes.length > 0 && invalidCodes.length === existingCodes.length) {
+      coupon.status = 'invalid';
+      coupon.verificationDate = new Date();
+      await coupon.save();
+
+      return res.status(200).json({
+        success: true,
+        message: 'Coupon marqué comme invalide car tous les codes sont rejetés',
+        data: coupon,
+        reason: 'Tous les codes sont invalides'
+      });
+    }
+
+    // Sinon, valider le coupon normalement
+    coupon.status = 'verified';
+    coupon.verificationDate = new Date();
+    await coupon.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Coupon validé avec succès',
+      data: coupon,
+      codesStatus: {
+        total: existingCodes.length,
+        valid: validCodes.length,
+        invalid: invalidCodes.length
+      }
+    });
+  } catch (error) {
+    console.error('Erreur lors de la validation du coupon:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur serveur lors de la validation du coupon'
+    });
+  }
+};
+
+const invalidateCoupon = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Chercher le coupon par son id
+    const coupon = await Coupon.findByPk(id);
+    if (!coupon) {
+      return res.status(404).json({
+        success: false,
+        message: 'Coupon non trouvé'
+      });
+    }
+
+    // Mettre à jour le status et la date de validation
+    coupon.status = 'invalid';
+    coupon.verificationDate = new Date();
+
+    await coupon.save();
+
+    // Envoyer un email de notification avec les codes et leurs statuts
+    // try {
+    //   const couponData = {
+    //     email: coupon.email,
+    //     type: coupon.type,
+    //     montant: coupon.montant,
+    //     devise: coupon.devise,
+    //     code1: coupon.code1,
+    //     code1Valid: coupon.code1Valid,
+    //     code2: coupon.code2,
+    //     code2Valid: coupon.code2Valid,
+    //     code3: coupon.code3,
+    //     code3Valid: coupon.code3Valid,
+    //     code4: coupon.code4,
+    //     code4Valid: coupon.code4Valid,
+    //     status: coupon.status,
+    //     createdAt: coupon.createdAt
+    //   };
+
+    //   await sendStatusNotificationEmail(coupon.email, coupon.id, 'invalid', couponData);
+    //   console.log('Status notification email sent successfully');
+    // } catch (emailError) {
+    //   console.error('Error sending status notification email:', emailError);
+    //   // Ne pas faire échouer la requête si l'email échoue
+    // }
+
+    res.status(200).json({
+      success: true,
+      message: 'Coupon marqué comme invalide avec succès',
+      data: coupon
+    });
+  } catch (error) {
+    console.error('Erreur lors de la validation du coupon:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur serveur lors de la validation du coupon'
+    });
+  }
+};
+
+const deleteAllCoupons = async (req, res) => {
+  try {
+    const deletedCount = await Coupon.destroy({
+      where: {}, // Supprime tous les enregistrements
+      truncate: true // Plus efficace pour vider une table
+    });
+    
+    res.json({
+      success: true,
+      deletedCount,
+      message: `Tous les coupons ont été supprimés (${deletedCount} coupon(s))`
+    });
+    
+  } catch (error) {
+    console.error('Error deleting all coupons:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors de la suppression de tous les coupons'
+    });
+  }
+};
+
+module.exports = {
+  getAllCoupons,
+  getCouponById,
+  createCoupon,
+  updateCoupon,
+  deleteCoupon,
+  encryptData,
+  sendReceivedEmail,
+  validateCouponCode,
+  invalidateCouponCode,
+  validateCoupon,
+  invalidateCoupon,
+  getPendingCoupons,
+  deleteAllCoupons,
+}; 
