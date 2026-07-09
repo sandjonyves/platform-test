@@ -37,6 +37,9 @@ class MainApplication : Application(), ReactApplication {
         NotificationManager.IMPORTANCE_HIGH
       ).apply {
         description = "Notifications pour les nouveaux coupons"
+        enableVibration(true)
+        enableLights(true)
+        setShowBadge(true)
       }
       val manager = getSystemService(NotificationManager::class.java)
       manager?.createNotificationChannel(channel)
