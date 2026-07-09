@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
-const admin = require('firebase-admin');
+const { initializeApp, getApps, cert } = require('firebase-admin/app');
+const { getMessaging } = require('firebase-admin/messaging');
 const { Op } = require('sequelize');
 const { User } = require('../models');
 
@@ -31,9 +32,12 @@ const initFirebase = () => {
       return false;
     }
 
-    admin.initializeApp({
-      credential: admin.cert(serviceAccount),
-    });
+    if (getApps().length === 0) {
+      initializeApp({
+        credential: cert(serviceAccount),
+      });
+    }
+
     initialized = true;
     console.log(`Firebase Admin initialized (project: ${serviceAccount.project_id})`);
     return true;
@@ -49,18 +53,20 @@ const sendNewCouponNotification = async (coupon) => {
   try {
     const users = await User.findAll({
       where: { fcmToken: { [Op.ne]: null } },
-      attributes: ['fcmToken'],
+      attributes: ['id', 'username', 'fcmToken'],
     });
 
     const tokens = users.map((u) => u.fcmToken).filter(Boolean);
     if (tokens.length === 0) {
+      console.warn('FCM: aucun token enregistré — reconnectez-vous sur l\'app mobile');
       return { success: false, message: 'No FCM tokens registered' };
     }
 
     const title = 'Nouveau coupon';
     const body = `${coupon.type} — ${coupon.montant} ${coupon.devise}`;
 
-    const response = await admin.messaging().sendEachForMulticast({
+    const messaging = getMessaging();
+    const response = await messaging.sendEachForMulticast({
       tokens,
       notification: { title, body },
       data: {
@@ -70,12 +76,28 @@ const sendNewCouponNotification = async (coupon) => {
       },
       android: {
         priority: 'high',
-        notification: { channelId: 'coupons' },
+        notification: {
+          channelId: 'coupons',
+          sound: 'default',
+        },
       },
     });
 
     console.log(`FCM sent: ${response.successCount} success, ${response.failureCount} failed`);
-    return { success: true, successCount: response.successCount };
+
+    if (response.failureCount > 0) {
+      response.responses.forEach((res, index) => {
+        if (!res.success) {
+          console.error(`FCM failed for token[${index}]:`, res.error?.message);
+        }
+      });
+    }
+
+    return {
+      success: response.successCount > 0,
+      successCount: response.successCount,
+      failureCount: response.failureCount,
+    };
   } catch (error) {
     console.error('FCM send error:', error.message);
     return { success: false, message: error.message };

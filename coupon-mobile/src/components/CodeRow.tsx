@@ -1,14 +1,24 @@
 import React from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import type { CodeName } from '../types';
 import { colors, radius, spacing } from '../theme';
-import { OutlineButton } from './OutlineButton';
+import { Icon } from './Icon';
+
+export type CodeDecision = 'validated' | 'rejected' | null;
 
 interface CodeRowProps {
   label: string;
   codeName: CodeName;
   value?: string | null;
-  isValid: boolean;
+  decision: CodeDecision;
+  reviewed: boolean;
+  readOnly?: boolean;
   onValidate: () => void;
   onReject: () => void;
   loading?: boolean;
@@ -17,38 +27,70 @@ interface CodeRowProps {
 export function CodeRow({
   label,
   value,
-  isValid,
+  decision,
+  reviewed,
+  readOnly = false,
   onValidate,
   onReject,
   loading = false,
 }: CodeRowProps) {
   if (!value) return null;
 
+  const statusLabel =
+    decision === 'validated'
+      ? '✓'
+      : decision === 'rejected'
+        ? '✗'
+        : '·';
+
+  const statusStyle =
+    decision === 'validated'
+      ? styles.valid
+      : decision === 'rejected'
+        ? styles.rejected
+        : styles.pending;
+
   return (
-    <View style={styles.row}>
+    <View style={[styles.row, reviewed && styles.rowReviewed]}>
       <View style={styles.info}>
-        <Text style={styles.label}>{label}</Text>
-        <Text style={styles.code}>{value}</Text>
-        <Text style={[styles.status, isValid ? styles.valid : styles.invalid]}>
-          {isValid ? 'Valide' : 'Non validé / rejeté'}
+        <Text style={styles.label} numberOfLines={1}>
+          {label}
+        </Text>
+        <Text style={styles.code} numberOfLines={1}>
+          {value}
         </Text>
       </View>
+
+      <Text style={[styles.status, statusStyle]}>{statusLabel}</Text>
+
       {loading ? (
-        <ActivityIndicator color={colors.primary} />
-      ) : (
+        <ActivityIndicator size="small" color={colors.primary} style={styles.loader} />
+      ) : readOnly ? null : (
         <View style={styles.actions}>
-          <OutlineButton
-            title="Valider"
-            variant="success"
+          <Pressable
             onPress={onValidate}
-            style={styles.actionBtn}
-          />
-          <OutlineButton
-            title="Rejeter"
-            variant="danger"
+            disabled={reviewed}
+            style={({ pressed }) => [
+              styles.iconBtn,
+              styles.validateBtn,
+              reviewed && styles.iconBtnDisabled,
+              pressed && !reviewed && styles.pressed,
+            ]}
+            accessibilityLabel="Valider le code">
+            <Icon name="check" size={18} color={reviewed ? colors.textSecondary : colors.success} />
+          </Pressable>
+          <Pressable
             onPress={onReject}
-            style={styles.actionBtn}
-          />
+            disabled={reviewed}
+            style={({ pressed }) => [
+              styles.iconBtn,
+              styles.rejectBtn,
+              reviewed && styles.iconBtnDisabled,
+              pressed && !reviewed && styles.pressed,
+            ]}
+            accessibilityLabel="Rejeter le code">
+            <Icon name="close" size={18} color={reviewed ? colors.textSecondary : colors.error} />
+          </Pressable>
         </View>
       )}
     </View>
@@ -57,29 +99,71 @@ export function CodeRow({
 
 const styles = StyleSheet.create({
   row: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: colors.background,
-    borderRadius: radius.md,
-    padding: spacing.md,
-    marginBottom: spacing.sm,
+    borderRadius: radius.sm,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    marginBottom: spacing.xs,
     borderWidth: 1,
     borderColor: colors.border,
+    gap: spacing.xs,
   },
-  info: { marginBottom: spacing.sm },
+  rowReviewed: {
+    opacity: 0.7,
+  },
+  info: {
+    flex: 1,
+    minWidth: 0,
+  },
   label: {
-    fontSize: 12,
+    fontSize: 10,
     color: colors.textSecondary,
     fontWeight: '600',
-    marginBottom: spacing.xs,
   },
   code: {
-    fontSize: 15,
+    fontSize: 12,
     fontFamily: 'monospace',
     color: colors.text,
-    marginBottom: spacing.xs,
   },
-  status: { fontSize: 12, fontWeight: '600' },
+  status: {
+    fontSize: 14,
+    fontWeight: '700',
+    width: 16,
+    textAlign: 'center',
+  },
   valid: { color: colors.success },
-  invalid: { color: colors.error },
-  actions: { flexDirection: 'row', gap: spacing.sm },
-  actionBtn: { flex: 1 },
+  rejected: { color: colors.error },
+  pending: { color: colors.textSecondary },
+  loader: {
+    width: 68,
+  },
+  actions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  iconBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: radius.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+  },
+  validateBtn: {
+    borderColor: colors.success,
+    backgroundColor: colors.successBg,
+  },
+  rejectBtn: {
+    borderColor: colors.error,
+    backgroundColor: colors.errorBg,
+  },
+  iconBtnDisabled: {
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    opacity: 0.6,
+  },
+  pressed: { opacity: 0.85 },
 });

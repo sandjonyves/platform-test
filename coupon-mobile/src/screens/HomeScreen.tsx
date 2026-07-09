@@ -8,25 +8,24 @@ import {
   Text,
   View,
 } from 'react-native';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
-import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useFocusEffect } from '@react-navigation/native';
 import { couponsApi } from '../api/coupons';
+import type { CodeDecision } from '../components/CodeRow';
 import { CouponCard } from '../components/CouponCard';
 import { EmptyState } from '../components/EmptyState';
 import { FilterTabs } from '../components/FilterTabs';
 import { ScreenHeader } from '../components/ScreenHeader';
-import type { HomeStackParamList } from '../navigation/types';
-import type { Coupon, CouponFilter } from '../types';
+import type { CodeName, Coupon, CouponFilter } from '../types';
 import { colors, spacing } from '../theme';
 
-type Nav = NativeStackNavigationProp<HomeStackParamList, 'HomeList'>;
+type ReviewedMap = Record<number, Set<CodeName>>;
 
 export function HomeScreen() {
-  const navigation = useNavigation<Nav>();
   const [coupons, setCoupons] = useState<Coupon[]>([]);
   const [filter, setFilter] = useState<CouponFilter>('all');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [reviewedByCoupon, setReviewedByCoupon] = useState<ReviewedMap>({});
 
   const loadCoupons = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -50,6 +49,21 @@ export function HomeScreen() {
       loadCoupons();
     }, [loadCoupons]),
   );
+
+  const handleCodeReviewed = useCallback(
+    (couponId: number, codeName: CodeName, _decision: CodeDecision) => {
+      setReviewedByCoupon((prev) => {
+        const next = new Set(prev[couponId] ?? []);
+        next.add(codeName);
+        return { ...prev, [couponId]: next };
+      });
+    },
+    [],
+  );
+
+  const handleCouponUpdated = useCallback((updated: Coupon) => {
+    setCoupons((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+  }, []);
 
   const counts = useMemo(
     () => ({
@@ -115,9 +129,11 @@ export function HomeScreen() {
         renderItem={({ item }) => (
           <CouponCard
             coupon={item}
-            onPress={() =>
-              navigation.navigate('CouponDetail', { couponId: item.id })
+            reviewedCodes={reviewedByCoupon[item.id] ?? new Set()}
+            onCodeReviewed={(codeName, decision) =>
+              handleCodeReviewed(item.id, codeName, decision)
             }
+            onCouponUpdated={handleCouponUpdated}
           />
         )}
       />
