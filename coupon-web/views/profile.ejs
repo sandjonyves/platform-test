@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profil - Romaric Project</title>
+    <link rel="stylesheet" href="/stylesheets/style.css">
+    <link rel="icon" type="image/png" href="/images/logo.png" />
+
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div class="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+        <!-- Header -->
+        <div class="px-4 py-6 sm:px-0">
+            <div class="flex justify-between items-center">
+                <h1 class="text-3xl font-bold text-gray-900">Mon Profil</h1>
+                <div class="flex space-x-4">
+                    <a href="/" class="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded">
+                        Accueil
+                    </a>
+                    <button onclick="logout()" class="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded">
+                        Déconnexion
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Profile Content -->
+        <div class="px-4 py-6 sm:px-0">
+            <div class="bg-white shadow overflow-hidden sm:rounded-lg">
+                <div class="px-4 py-5 sm:px-6">
+                    <h3 class="text-lg leading-6 font-medium text-gray-900">
+                        Informations du compte
+                    </h3>
+                    <p class="mt-1 max-w-2xl text-sm text-gray-500">
+                        Détails personnels et paramètres de votre compte.
+                    </p>
+                </div>
+                <div class="border-t border-gray-200">
+                    <dl>
+                        <div class="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                            <dt class="text-sm font-medium text-gray-500">
+                                Nom d'utilisateur
+                            </dt>
+                            <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2" id="username">
+                                Chargement...
+                            </dd>
+                        </div>
+                        <div class="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                            <dt class="text-sm font-medium text-gray-500">
+                                ID Utilisateur
+                            </dt>
+                            <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2" id="userId">
+                                Chargement...
+                            </dd>
+                        </div>
+                        
+                        <div class="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                            <dt class="text-sm font-medium text-gray-500">
+                                Date de création
+                            </dt>
+                            <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2" id="createdAt">
+                                Chargement...
+                            </dd>
+                        </div>
+                    </dl>
+                </div>
+            </div>
+
+            
+        </div>
+    </div>
+
+    <script src="/javascripts/auth.js"></script>
+    <script>
+        // Check authentication on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            if (!window.authManager.isAuthenticated()) {
+                window.location.href = '/login';
+                return;
+            }
+            
+            loadProfile();
+        });
+
+        async function loadProfile() {
+            const result = await window.authManager.getProfile();
+            
+            if (result.success) {
+                const user = result.data.user;
+                
+                document.getElementById('username').textContent = user.username;
+                document.getElementById('userId').textContent = user.id;
+                
+                document.getElementById('createdAt').textContent = new Date(user.createdAt).toLocaleString('fr-FR');
+                
+                
+            } else {
+                console.error('Failed to load profile:', result.message);
+            }
+        }
+
+        function logout() {
+            window.authManager.logout();
+        }
+
+        
+    </script>
+</body>
+</html> 
