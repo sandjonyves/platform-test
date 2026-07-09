@@ -76,9 +76,13 @@ const sendNewCouponNotification = async (coupon) => {
       },
       android: {
         priority: 'high',
+        ttl: 86400,
         notification: {
           channelId: 'coupons',
           sound: 'default',
+          defaultVibrateTimings: true,
+          visibility: 'public',
+          notificationPriority: 'PRIORITY_HIGH',
         },
       },
     });

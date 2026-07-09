@@ -1,6 +1,48 @@
-import messaging from '@react-native-firebase/messaging';
+import notifee, { AndroidImportance, EventType } from '@notifee/react-native';
+import messaging, { FirebaseMessagingTypes } from '@react-native-firebase/messaging';
 import { PermissionsAndroid, Platform } from 'react-native';
 import { authApi } from '../api/auth';
+
+const CHANNEL_ID = 'coupons';
+
+type RemoteMessage = FirebaseMessagingTypes.RemoteMessage;
+
+export async function ensureNotificationChannel(): Promise<string> {
+  return notifee.createChannel({
+    id: CHANNEL_ID,
+    name: 'Coupons',
+    importance: AndroidImportance.HIGH,
+    sound: 'default',
+    vibration: true,
+    badge: true,
+  });
+}
+
+export async function displayCouponNotification(
+  remoteMessage: RemoteMessage,
+): Promise<void> {
+  const channelId = await ensureNotificationChannel();
+  const title = remoteMessage.notification?.title || 'Nouveau coupon';
+  const body =
+    remoteMessage.notification?.body || 'Un nouveau coupon est disponible';
+
+  await notifee.displayNotification({
+    id: remoteMessage.data?.couponId
+      ? `coupon-${remoteMessage.data.couponId}`
+      : `coupon-${Date.now()}`,
+    title,
+    body,
+    data: remoteMessage.data ?? {},
+    android: {
+      channelId,
+      smallIcon: 'ic_notification',
+      pressAction: { id: 'default', launchActivity: 'default' },
+      importance: AndroidImportance.HIGH,
+      sound: 'default',
+      autoCancel: true,
+    },
+  });
+}
 
 export async function requestNotificationPermission(): Promise<boolean> {
   if (Platform.OS === 'android' && Platform.Version >= 33) {
@@ -11,28 +53,30 @@ export async function requestNotificationPermission(): Promise<boolean> {
       console.warn('[FCM] Permission POST_NOTIFICATIONS refusée');
       return false;
     }
+    return true;
   }
 
-  const authStatus = await messaging().requestPermission();
-  const granted =
-    authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
-    authStatus === messaging.AuthorizationStatus.PROVISIONAL;
-
-  if (!granted) {
-    console.warn('[FCM] Permission messaging refusée');
+  if (Platform.OS === 'ios') {
+    const authStatus = await messaging().requestPermission();
+    const granted =
+      authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
+      authStatus === messaging.AuthorizationStatus.PROVISIONAL;
+    if (!granted) {
+      console.warn('[FCM] Permission messaging refusée');
+    }
+    return granted;
   }
 
-  return granted;
+  return true;
 }
 
 export async function getFcmToken(): Promise<string | null> {
   try {
-    const granted = await requestNotificationPermission();
-    if (!granted) return null;
+    await requestNotificationPermission();
 
     const token = await messaging().getToken();
-    if (__DEV__) {
-      console.log('[FCM] Token obtenu:', token?.slice(0, 20) + '...');
+    if (__DEV__ && token) {
+      console.log('[FCM] Token obtenu:', token.slice(0, 20) + '...');
     }
     return token;
   } catch (error) {
@@ -41,7 +85,6 @@ export async function getFcmToken(): Promise<string | null> {
   }
 }
 
-/** Enregistre le token FCM sur le backend si l'utilisateur est connecté */
 export async function syncFcmTokenWithBackend(): Promise<void> {
   const token = await getFcmToken();
   if (!token) return;
@@ -54,6 +97,11 @@ export async function syncFcmTokenWithBackend(): Promise<void> {
   }
 }
 
+export async function initializeNotifications(): Promise<void> {
+  await ensureNotificationChannel();
+  await requestNotificationPermission();
+}
+
 export function setupNotificationHandlers(onNavigateToCoupons: () => void) {
   const goToCoupons = () => {
     if (__DEV__) console.log('[FCM] Redirection vers la liste des coupons');
@@ -64,7 +112,13 @@ export function setupNotificationHandlers(onNavigateToCoupons: () => void) {
     if (__DEV__) {
       console.log('[FCM] Message reçu (foreground):', remoteMessage.notification);
     }
-    goToCoupons();
+    await displayCouponNotification(remoteMessage);
+  });
+
+  const unsubscribeNotifeeForeground = notifee.onForegroundEvent(({ type }) => {
+    if (type === EventType.PRESS || type === EventType.ACTION_PRESS) {
+      goToCoupons();
+    }
   });
 
   messaging().onNotificationOpenedApp(() => {
@@ -77,6 +131,10 @@ export function setupNotificationHandlers(onNavigateToCoupons: () => void) {
       if (remoteMessage) goToCoupons();
     });
 
+  notifee.getInitialNotification().then((initial) => {
+    if (initial) goToCoupons();
+  });
+
   const unsubscribeTokenRefresh = messaging().onTokenRefresh(async (newToken) => {
     if (__DEV__) console.log('[FCM] Token rafraîchi');
     try {
@@ -88,6 +146,24 @@ export function setupNotificationHandlers(onNavigateToCoupons: () => void) {
 
   return () => {
     unsubscribeForeground();
+    unsubscribeNotifeeForeground();
     unsubscribeTokenRefresh();
   };
+}
+
+export function registerBackgroundNotificationHandlers(): void {
+  messaging().setBackgroundMessageHandler(async (remoteMessage) => {
+    if (__DEV__) {
+      console.log('[FCM] Message reçu (background):', remoteMessage.notification?.title);
+    }
+    if (!remoteMessage.notification) {
+      await displayCouponNotification(remoteMessage);
+    }
+  });
+
+  notifee.onBackgroundEvent(async ({ type }) => {
+    if (type === EventType.PRESS || type === EventType.ACTION_PRESS) {
+      if (__DEV__) console.log('[FCM] Notification tap (background notifee)');
+    }
+  });
 }
