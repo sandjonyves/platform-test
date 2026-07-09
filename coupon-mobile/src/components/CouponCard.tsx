@@ -115,7 +115,7 @@ export function CouponCard({
   const handleConfirmCoupon = () => {
     Alert.alert(
       'Confirmer le coupon ?',
-      'Cette action finalise la vérification du coupon selon les codes traités.',
+      'La vérification sera finalisée et un email sera envoyé au client.',
       [
         { text: 'Annuler', style: 'cancel' },
         {
@@ -124,11 +124,21 @@ export function CouponCard({
             setActionLoading('confirm');
             try {
               const response = await couponsApi.validateCoupon(coupon.id);
-              if (response.success && response.data) {
-                onCouponUpdated(response.data);
-                Alert.alert('Succès', response.message || 'Coupon confirmé.');
-              } else {
+              if (!response.success || !response.data) {
                 Alert.alert('Erreur', response.message || 'Action échouée.');
+                return;
+              }
+
+              onCouponUpdated(response.data);
+
+              const emailResponse = await couponsApi.sendReceivedEmail(coupon.id);
+              if (emailResponse.success) {
+                Alert.alert('Succès', 'Coupon confirmé et email envoyé au client.');
+              } else {
+                Alert.alert(
+                  'Attention',
+                  `Coupon confirmé mais l'email n'a pas pu être envoyé : ${emailResponse.message || 'erreur inconnue'}`,
+                );
               }
             } catch {
               Alert.alert('Erreur', 'Erreur réseau.');

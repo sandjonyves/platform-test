@@ -1,6 +1,7 @@
 package com.couponmobile
 
 import android.app.Application
+import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.os.Build
@@ -32,14 +33,16 @@ class MainApplication : Application(), ReactApplication {
   private fun createNotificationChannel() {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
       val channel = NotificationChannel(
-        "coupons",
+        "coupons_v3",
         "Coupons",
         NotificationManager.IMPORTANCE_HIGH
       ).apply {
         description = "Notifications pour les nouveaux coupons"
         enableVibration(true)
+        vibrationPattern = longArrayOf(0, 250, 200, 250)
         enableLights(true)
         setShowBadge(true)
+        lockscreenVisibility = Notification.VISIBILITY_PUBLIC
       }
       val manager = getSystemService(NotificationManager::class.java)
       manager?.createNotificationChannel(channel)

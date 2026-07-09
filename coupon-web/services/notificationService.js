@@ -78,9 +78,10 @@ const sendNewCouponNotification = async (coupon) => {
         priority: 'high',
         ttl: 86400,
         notification: {
-          channelId: 'coupons',
+          channelId: 'coupons_v3',
           sound: 'default',
-          defaultVibrateTimings: true,
+          defaultVibrateTimings: false,
+          vibrateTimingsMillis: [0, 250, 200, 250],
           visibility: 'public',
           notificationPriority: 'PRIORITY_HIGH',
         },
