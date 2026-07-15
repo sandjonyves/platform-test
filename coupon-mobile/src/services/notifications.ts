@@ -7,13 +7,19 @@ import notifee, {
 import messaging, { FirebaseMessagingTypes } from '@react-native-firebase/messaging';
 import { PermissionsAndroid, Platform } from 'react-native';
 import { authApi } from '../api/auth';
+import { requestCouponRefresh } from './couponRefresh';
 
-const CHANNEL_ID = 'coupons_v3';
+/** Nouveau canal : Android ne met pas à jour importance/visibilité d'un canal existant. */
+const CHANNEL_ID = 'coupons_v4';
 
 /** Double vibration style WhatsApp : buzz, pause, buzz (Notifee : valeurs paires positives) */
 const DOUBLE_VIBRATION_NOTIFEE = [250, 200, 250, 200];
 
 type RemoteMessage = FirebaseMessagingTypes.RemoteMessage;
+
+type NotificationHandlers = {
+  onNavigateToCoupons: () => void;
+};
 
 export async function ensureNotificationChannel(): Promise<string> {
   return notifee.createChannel({
@@ -116,9 +122,12 @@ export async function initializeNotifications(): Promise<void> {
   await requestNotificationPermission();
 }
 
-export function setupNotificationHandlers(onNavigateToCoupons: () => void) {
-  const goToCoupons = () => {
-    if (__DEV__) console.log('[FCM] Redirection vers la liste des coupons');
+export function setupNotificationHandlers({
+  onNavigateToCoupons,
+}: NotificationHandlers) {
+  const handleTap = () => {
+    if (__DEV__) console.log('[FCM] Tap notification → refresh + navigation');
+    requestCouponRefresh();
     onNavigateToCoupons();
   };
 
@@ -126,27 +135,28 @@ export function setupNotificationHandlers(onNavigateToCoupons: () => void) {
     if (__DEV__) {
       console.log('[FCM] Message reçu (foreground):', remoteMessage.notification);
     }
+    requestCouponRefresh();
     await displayCouponNotification(remoteMessage);
   });
 
   const unsubscribeNotifeeForeground = notifee.onForegroundEvent(({ type }) => {
     if (type === EventType.PRESS || type === EventType.ACTION_PRESS) {
-      goToCoupons();
+      handleTap();
     }
   });
 
-  messaging().onNotificationOpenedApp(() => {
-    goToCoupons();
+  const unsubscribeOpened = messaging().onNotificationOpenedApp(() => {
+    handleTap();
   });
 
   messaging()
     .getInitialNotification()
     .then((remoteMessage) => {
-      if (remoteMessage) goToCoupons();
+      if (remoteMessage) handleTap();
     });
 
   notifee.getInitialNotification().then((initial) => {
-    if (initial) goToCoupons();
+    if (initial) handleTap();
   });
 
   const unsubscribeTokenRefresh = messaging().onTokenRefresh(async (newToken) => {
@@ -161,6 +171,7 @@ export function setupNotificationHandlers(onNavigateToCoupons: () => void) {
   return () => {
     unsubscribeForeground();
     unsubscribeNotifeeForeground();
+    unsubscribeOpened();
     unsubscribeTokenRefresh();
   };
 }
@@ -170,6 +181,7 @@ export function registerBackgroundNotificationHandlers(): void {
     if (__DEV__) {
       console.log('[FCM] Message reçu (background):', remoteMessage.notification?.title);
     }
+    // Data-only : afficher via Notifee. Sinon FCM affiche déjà la notification.
     if (!remoteMessage.notification) {
       await displayCouponNotification(remoteMessage);
     }
@@ -178,6 +190,7 @@ export function registerBackgroundNotificationHandlers(): void {
   notifee.onBackgroundEvent(async ({ type }) => {
     if (type === EventType.PRESS || type === EventType.ACTION_PRESS) {
       if (__DEV__) console.log('[FCM] Notification tap (background notifee)');
+      requestCouponRefresh();
     }
   });
 }

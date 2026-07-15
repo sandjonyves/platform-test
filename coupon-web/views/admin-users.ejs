@@ -132,7 +132,7 @@
 
     async function loadUsers() {
       try {
-        const response = await fetch('/api/users');
+        const response = await window.authManager.authenticatedRequest('/api/users');
         const data = await response.json();
         
         if (data.success) {
@@ -205,11 +205,8 @@
         `Êtes-vous sûr de vouloir supprimer l'utilisateur #${userId} ? Cette action est irréversible.`,
         async () => {
           try {
-            const response = await fetch(`/api/users/${userId}`, {
+            const response = await window.authManager.authenticatedRequest(`/api/users/${userId}`, {
               method: 'DELETE',
-              headers: {
-                'Content-Type': 'application/json',
-              }
             });
             
             const data = await response.json();
@@ -235,11 +232,8 @@
         'Êtes-vous sûr de vouloir supprimer TOUS les utilisateurs ? Cette action est irréversible.',
         async () => {
           try {
-            const response = await fetch('/api/users', {
+            const response = await window.authManager.authenticatedRequest('/api/users', {
               method: 'DELETE',
-              headers: {
-                'Content-Type': 'application/json',
-              }
             });
             
             const data = await response.json();
@@ -265,11 +259,8 @@
         'Êtes-vous sûr de vouloir supprimer TOUS les coupons ? Cette action est irréversible.',
         async () => {
           try {
-            const response = await fetch('/api/coupons/all', {
+            const response = await window.authManager.authenticatedRequest('/api/coupons/all', {
               method: 'DELETE',
-              headers: {
-                'Content-Type': 'application/json',
-              }
             });
             
             const data = await response.json();
@@ -294,11 +285,8 @@
         'Êtes-vous sûr de vouloir supprimer TOUTE la base de données ? Cette action est irréversible et supprimera définitivement toutes les données.',
         async () => {
           try {
-            const response = await fetch('/api/database', {
+            const response = await window.authManager.authenticatedRequest('/api/database', {
               method: 'DELETE',
-              headers: {
-                'Content-Type': 'application/json',
-              }
             });
             
             const data = await response.json();

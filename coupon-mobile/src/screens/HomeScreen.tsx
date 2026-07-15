@@ -1,7 +1,8 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  AppState,
   FlatList,
   RefreshControl,
   StyleSheet,
@@ -14,6 +15,7 @@ import type { CodeDecision } from '../components/CodeRow';
 import { CouponCard } from '../components/CouponCard';
 import { EmptyState } from '../components/EmptyState';
 import { ScreenHeader } from '../components/ScreenHeader';
+import { subscribeCouponRefresh } from '../services/couponRefresh';
 import type { CodeName, Coupon } from '../types';
 import { colors, spacing } from '../theme';
 
@@ -47,6 +49,23 @@ export function HomeScreen() {
       loadCoupons();
     }, [loadCoupons]),
   );
+
+  // Refresh silencieux quand une notification FCM arrive / est tapée
+  useEffect(() => {
+    return subscribeCouponRefresh(() => {
+      loadCoupons(true);
+    });
+  }, [loadCoupons]);
+
+  // Refresh au retour au premier plan (tap notification / déverrouillage)
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active') {
+        loadCoupons(true);
+      }
+    });
+    return () => subscription.remove();
+  }, [loadCoupons]);
 
   const handleCodeReviewed = useCallback(
     (couponId: number, codeName: CodeName, _decision: CodeDecision) => {
