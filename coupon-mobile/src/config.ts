@@ -8,7 +8,7 @@ import { Platform } from 'react-native';
  * USB + adb reverse          : localhost (après: adb reverse tcp:3000 tcp:3000)
  */
 export const DEV_API_HOST =
-  Platform.OS === 'android' ? '192.168.0.108' : 'localhost';
+  Platform.OS === 'android' ? '10.115.29.252' : 'localhost';
 
 export const API_BASE_URL = __DEV__
   ? `http://${DEV_API_HOST}:3000/api`
