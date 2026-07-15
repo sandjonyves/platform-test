@@ -32,20 +32,30 @@ class MainApplication : Application(), ReactApplication {
 
   private fun createNotificationChannel() {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+      val manager = getSystemService(NotificationManager::class.java) ?: return
+
+      // Supprimer les anciens canaux (Android ne met pas à jour importance/visibilité)
+      listOf("coupons_v3", "coupons_v4").forEach { id ->
+        try {
+          manager.deleteNotificationChannel(id)
+        } catch (_: Exception) {
+        }
+      }
+
       val channel = NotificationChannel(
-        "coupons_v4",
+        "coupons_v5",
         "Coupons",
         NotificationManager.IMPORTANCE_HIGH
       ).apply {
-        description = "Notifications pour les nouveaux coupons"
+        description = "Notifications pour les nouveaux coupons (écran de verrouillage)"
         enableVibration(true)
         vibrationPattern = longArrayOf(0, 250, 200, 250)
         enableLights(true)
         setShowBadge(true)
         lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+        setBypassDnd(false)
       }
-      val manager = getSystemService(NotificationManager::class.java)
-      manager?.createNotificationChannel(channel)
+      manager.createNotificationChannel(channel)
     }
   }
 }
