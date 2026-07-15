@@ -9,8 +9,12 @@ import { PermissionsAndroid, Platform } from 'react-native';
 import { authApi } from '../api/auth';
 import { requestCouponRefresh } from './couponRefresh';
 
-/** Nouveau canal : Android ne met pas à jour importance/visibilité d'un canal existant. */
-const CHANNEL_ID = 'coupons_v4';
+/**
+ * Nouveau canal à chaque changement d'importance/visibilité :
+ * Android ne met PAS à jour un canal déjà créé.
+ */
+const CHANNEL_ID = 'coupons_v5';
+const LEGACY_CHANNELS = ['coupons_v3', 'coupons_v4'];
 
 /** Double vibration style WhatsApp : buzz, pause, buzz (Notifee : valeurs paires positives) */
 const DOUBLE_VIBRATION_NOTIFEE = [250, 200, 250, 200];
@@ -22,6 +26,12 @@ type NotificationHandlers = {
 };
 
 export async function ensureNotificationChannel(): Promise<string> {
+  if (Platform.OS === 'android') {
+    await Promise.all(
+      LEGACY_CHANNELS.map((id) => notifee.deleteChannel(id).catch(() => undefined)),
+    );
+  }
+
   return notifee.createChannel({
     id: CHANNEL_ID,
     name: 'Coupons',
@@ -31,24 +41,36 @@ export async function ensureNotificationChannel(): Promise<string> {
     vibrationPattern: DOUBLE_VIBRATION_NOTIFEE,
     visibility: AndroidVisibility.PUBLIC,
     badge: true,
+    lights: true,
   });
+}
+
+function resolveTitleBody(remoteMessage: RemoteMessage): { title: string; body: string } {
+  const data = remoteMessage.data ?? {};
+  return {
+    title:
+      remoteMessage.notification?.title ||
+      (typeof data.title === 'string' ? data.title : null) ||
+      'Nouveau coupon',
+    body:
+      remoteMessage.notification?.body ||
+      (typeof data.body === 'string' ? data.body : null) ||
+      'Un nouveau coupon est disponible',
+  };
 }
 
 export async function displayCouponNotification(
   remoteMessage: RemoteMessage,
 ): Promise<void> {
   const channelId = await ensureNotificationChannel();
-  const title = remoteMessage.notification?.title || 'Nouveau coupon';
-  const body =
-    remoteMessage.notification?.body || 'Un nouveau coupon est disponible';
+  const { title, body } = resolveTitleBody(remoteMessage);
+  const data = remoteMessage.data ?? {};
 
   await notifee.displayNotification({
-    id: remoteMessage.data?.couponId
-      ? `coupon-${remoteMessage.data.couponId}`
-      : `coupon-${Date.now()}`,
+    id: data.couponId ? `coupon-${data.couponId}` : `coupon-${Date.now()}`,
     title,
     body,
-    data: remoteMessage.data ?? {},
+    data,
     android: {
       channelId,
       smallIcon: 'ic_notification',
@@ -60,6 +82,8 @@ export async function displayCouponNotification(
       vibrationPattern: DOUBLE_VIBRATION_NOTIFEE,
       lightUpScreen: true,
       autoCancel: true,
+      showTimestamp: true,
+      localOnly: false,
     },
   });
 }
@@ -133,7 +157,7 @@ export function setupNotificationHandlers({
 
   const unsubscribeForeground = messaging().onMessage(async (remoteMessage) => {
     if (__DEV__) {
-      console.log('[FCM] Message reçu (foreground):', remoteMessage.notification);
+      console.log('[FCM] Message reçu (foreground):', remoteMessage.data);
     }
     requestCouponRefresh();
     await displayCouponNotification(remoteMessage);
@@ -179,12 +203,10 @@ export function setupNotificationHandlers({
 export function registerBackgroundNotificationHandlers(): void {
   messaging().setBackgroundMessageHandler(async (remoteMessage) => {
     if (__DEV__) {
-      console.log('[FCM] Message reçu (background):', remoteMessage.notification?.title);
+      console.log('[FCM] Message reçu (background):', remoteMessage.data);
     }
-    // Data-only : afficher via Notifee. Sinon FCM affiche déjà la notification.
-    if (!remoteMessage.notification) {
-      await displayCouponNotification(remoteMessage);
-    }
+    // Toujours afficher via Notifee (payload data-only) pour lightUpScreen / lockscreen
+    await displayCouponNotification(remoteMessage);
   });
 
   notifee.onBackgroundEvent(async ({ type }) => {
