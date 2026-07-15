@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -23,6 +23,9 @@ const HomeStack = createNativeStackNavigator<HomeStackParamList>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
 export const navigationRef = createNavigationContainerRef<RootStackParamList>();
+
+/** Navigation demandée avant que le container / la session soit prête. */
+let pendingNavigateToCoupons = false;
 
 function AuthNavigator() {
   return (
@@ -82,6 +85,15 @@ function MainTabs() {
 
 function RootNavigator() {
   const { isAuthenticated, isLoading } = useAuth();
+  const wasAuthenticated = useRef(isAuthenticated);
+
+  useEffect(() => {
+    if (!wasAuthenticated.current && isAuthenticated && pendingNavigateToCoupons) {
+      // Session restaurée après un tap notification (cold start)
+      setTimeout(() => navigateToCouponsList(), 0);
+    }
+    wasAuthenticated.current = isAuthenticated;
+  }, [isAuthenticated]);
 
   if (isLoading) {
     return (
@@ -105,19 +117,32 @@ function RootNavigator() {
 
 export function AppNavigator() {
   useEffect(() => {
-    const unsubscribe = setupNotificationHandlers(navigateToCouponsList);
+    const unsubscribe = setupNotificationHandlers({
+      onNavigateToCoupons: navigateToCouponsList,
+    });
     return unsubscribe;
   }, []);
 
   return (
-    <NavigationContainer ref={navigationRef}>
+    <NavigationContainer
+      ref={navigationRef}
+      onReady={() => {
+        if (pendingNavigateToCoupons) {
+          navigateToCouponsList();
+        }
+      }}>
       <RootNavigator />
     </NavigationContainer>
   );
 }
 
 function navigateToCouponsList() {
-  if (!navigationRef.isReady()) return;
+  if (!navigationRef.isReady()) {
+    pendingNavigateToCoupons = true;
+    return;
+  }
+
+  pendingNavigateToCoupons = false;
   navigationRef.navigate('Main', {
     screen: 'Coupons',
     params: { screen: 'HomeList' },

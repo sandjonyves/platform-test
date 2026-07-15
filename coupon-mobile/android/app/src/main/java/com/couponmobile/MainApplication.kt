@@ -33,7 +33,7 @@ class MainApplication : Application(), ReactApplication {
   private fun createNotificationChannel() {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
       val channel = NotificationChannel(
-        "coupons_v3",
+        "coupons_v4",
         "Coupons",
         NotificationManager.IMPORTANCE_HIGH
       ).apply {
