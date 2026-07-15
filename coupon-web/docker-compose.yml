@@ -11,3 +11,22 @@ services:
       - .env
     # volumes:
     #   - ./data:/app/data
+
+
+
+
+# services:
+#   plateform-test:
+#     build:
+#       context: .
+#       dockerfile: dockerfile
+#     image: plateform-test:latest
+#     container_name: plateform-test
+#     restart: unless-stopped
+#     ports:
+#       - "${HOST_PORT:-3000}:3000"
+#     env_file:
+#       - .env
+#     environment:
+#       NODE_ENV: production
+#       PORT: 3000

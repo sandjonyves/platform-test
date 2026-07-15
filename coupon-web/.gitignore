@@ -103,5 +103,6 @@ Thumbs.db
 # Temporary files
 tmp/
 temp/ 
-romaric-projet-firebase-adminsdk-fbsvc-794889836c.json
+# Firebase / secrets (ne pas versionner)
 *-firebase-adminsdk-*.json
+secrets/
