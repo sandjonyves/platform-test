@@ -1,20 +1,3 @@
-
-# services:
-#   plateform-test:
-#     # image: sandjonyves/plateform-test:latest
-#     build: .
-#     container_name: plateform-test
-#     restart: unless-stopped
-#     ports:
-#       - "${PORT}"
-#     env_file:
-#       - .env
-#     # volumes:
-#     #   - ./data:/app/data
-
-
-
-
 services:
   plateform-test:
     build:
@@ -23,10 +6,10 @@ services:
     image: plateform-test:latest
     container_name: plateform-test
     restart: unless-stopped
-    ports:
-      - "${HOST_PORT:-8080}:8080"
     env_file:
       - .env
     environment:
       NODE_ENV: production
-      PORT: 8080
+      PORT: 3000
+    expose:
+      - "3000"
