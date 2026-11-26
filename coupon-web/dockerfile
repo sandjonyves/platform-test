@@ -1,14 +1,16 @@
-FROM node:18-slim
+# firebase-admin 14 exige Node >= 22
+FROM node:22-slim
 
 WORKDIR /app
 
 COPY . .
 
-RUN npm install --silent
+# npm ci : installe exactement les versions du package-lock.json
+RUN npm ci --silent
 
 RUN npm run build:css
 
-RUN npm prune --production
+RUN npm prune --omit=dev
 
 ENV NODE_ENV=production
 ENV PORT=3000
