@@ -11,6 +11,7 @@ export type HomeStackParamList = {
 
 export type MainTabParamList = {
   Coupons: undefined;
+  Gains: undefined;
   Profile: undefined;
 };
 

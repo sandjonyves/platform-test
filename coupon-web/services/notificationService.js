@@ -62,29 +62,24 @@ const sendNewCouponNotification = async (coupon) => {
       return { success: false, message: 'No FCM tokens registered' };
     }
 
+    // Data-only : Notifee affiche la notif (lightUpScreen / lockscreen).
+    // Un champ `notification` ferait afficher FCM système, sans réveil d'écran fiable.
     const title = 'Nouveau coupon';
     const body = `${coupon.type} — ${coupon.montant} ${coupon.devise}`;
 
     const messaging = getMessaging();
     const response = await messaging.sendEachForMulticast({
       tokens,
-      notification: { title, body },
       data: {
         couponId: String(coupon.id),
-        type: coupon.type,
-        status: coupon.status,
+        type: String(coupon.type || ''),
+        status: String(coupon.status || ''),
+        title,
+        body,
       },
       android: {
         priority: 'high',
-        ttl: 86400,
-        notification: {
-          channelId: 'coupons_v4',
-          sound: 'default',
-          defaultVibrateTimings: false,
-          vibrateTimingsMillis: [0, 250, 200, 250],
-          visibility: 'public',
-          notificationPriority: 'PRIORITY_HIGH',
-        },
+        ttl: 86400000,
       },
     });
 
