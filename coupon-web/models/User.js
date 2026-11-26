@@ -27,6 +27,11 @@ const User = sequelize.define('User', {
   fcmToken: {
     type: DataTypes.STRING,
     allowNull: true
+  },
+  role: {
+    type: DataTypes.ENUM('admin', 'user'),
+    allowNull: false,
+    defaultValue: 'user'
   }
 }, {
   tableName: 'users',

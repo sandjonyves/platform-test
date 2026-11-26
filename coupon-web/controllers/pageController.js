@@ -38,10 +38,9 @@ const getLoginPage = (req, res) => {
  * Afficher la page d'enregistrement
  * GET /register
  */
+// L'inscription publique est fermée : les comptes sont créés depuis /admin.
 const getRegisterPage = (req, res) => {
-  res.render('register', { 
-    title: 'Inscription - Platform Web Test'
-  });
+  res.redirect('/login');
 };
 
 /**
@@ -59,19 +58,11 @@ const getProfilePage = (req, res) => {
  * GET /admin-coupons
  */
 const getAdminCouponsPage = (req, res) => {
-  res.render('admin-coupons', { 
-    title: 'Administration des Coupons - Platform Web Test'
-  });
+  res.redirect('/admin');
 };
 
-/**
- * Afficher la page d'administration des utilisateurs
- * GET /admin-users
- */
 const getAdminUsersPage = (req, res) => {
-  res.render('admin-users', { 
-    title: 'Administration des Utilisateurs - Platform Web Test'
-  });
+  res.redirect('/admin');
 };
 
 /**
@@ -128,13 +119,20 @@ const legacyVerifyCoupon = async (req, res) => {
 const { sequelize } = require('../models');
 
 const dropDatabase = async (req, res) => {
-  try {
-    await sequelize.drop();
-    res.json({ success: true, message: 'Toute la base de données a été supprimée.' });
-  } catch (error) {
-    console.error('Erreur lors de la suppression de la base de données:', error);
-    res.status(500).json({ success: false, message: 'Erreur lors de la suppression de la base de données', error });
-  }
+  return res.status(403).json({
+    success: false,
+    message: 'La suppression de la base de données est désactivée'
+  });
+};
+
+const getAdminPage = (req, res) => {
+  res.render('admin', {
+    title: 'Administration - Plateform-Test'
+  });
+};
+
+const redirectToAdmin = (req, res) => {
+  res.redirect('/admin');
 };
 
 module.exports = {
@@ -145,6 +143,8 @@ module.exports = {
   getProfilePage,
   getAdminCouponsPage,
   getAdminUsersPage,
+  getAdminPage,
+  redirectToAdmin,
   getErrorPage,
   legacyVerifyCoupon,
   dropDatabase

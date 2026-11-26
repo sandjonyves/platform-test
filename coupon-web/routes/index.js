@@ -13,8 +13,8 @@ router.use('/api', apiRoutes);
 // Routes des pages
 router.use('/', pageRoutes);
 
-router.get('/admin/users', (req, res, next) => {
-  res.redirect('/auth/admin/users');
+router.get('/admin/users', (req, res) => {
+  res.redirect('/admin');
 });
 
 module.exports = router;
