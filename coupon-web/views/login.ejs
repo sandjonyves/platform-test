@@ -21,8 +21,7 @@
                 </div>
                 <h2 class="mt-6 text-2xl font-bold tracking-tight text-gray-900">Connexion</h2>
                 <p class="mt-2 text-sm text-gray-600">
-                    Pas encore de compte ?
-                    <a href="/register" class="font-medium text-indigo-600 hover:text-indigo-500">Inscription</a>
+                    Pas de compte ? Contactez un administrateur.
                 </p>
             </div>
 
@@ -74,10 +73,10 @@
             messageDiv.classList.remove('hidden');
             
             if (result.success) {
-                // Redirect to dashboard or home page after 2 seconds
+                const isAdmin = result.data && result.data.user && result.data.user.role === 'admin';
                 setTimeout(() => {
-                    window.location.href = '/';
-                }, 2000);
+                    window.location.href = isAdmin ? '/admin' : '/';
+                }, 1000);
             }
         });
     </script>

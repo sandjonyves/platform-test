@@ -16,35 +16,61 @@ const authenticateToken = async (req, res, next) => {
     });
   }
 
+  let decoded;
   try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    
-    // Get user from database
-    const user = await User.findByPk(decoded.userId);
-    if (!user) {
-      return res.status(401).json({ 
-        success: false, 
-        message: 'Invalid token' 
-      });
-    }
-
-    req.user = user;
-    next();
+    decoded = jwt.verify(token, JWT_SECRET);
   } catch (error) {
-    return res.status(403).json({ 
-      success: false, 
-      message: 'Invalid or expired token' 
+    // 401 : les clients déconnectent l'utilisateur sur 401, un jeton
+    // invalide ou expiré doit donc renvoyer à l'écran de connexion.
+    return res.status(401).json({
+      success: false,
+      message: 'Invalid or expired token'
     });
   }
+
+  let user;
+  try {
+    user = await User.findByPk(decoded.userId);
+  } catch (error) {
+    // Base momentanément injoignable : ce n'est pas un problème de jeton,
+    // on ne doit pas déconnecter l'utilisateur.
+    console.error('Auth: database error while loading user:', error.message);
+    return res.status(503).json({
+      success: false,
+      message: 'Service momentanément indisponible, réessayez.'
+    });
+  }
+
+  if (!user) {
+    return res.status(401).json({
+      success: false,
+      message: 'Invalid token'
+    });
+  }
+
+  req.user = user;
+  next();
 };
 
-// Generate JWT token
-const generateToken = (userId) => {
-  return jwt.sign({ userId }, JWT_SECRET, { expiresIn: '24h' });
+const requireAdmin = (req, res, next) => {
+  if (!req.user || req.user.role !== 'admin') {
+    return res.status(403).json({
+      success: false,
+      message: 'Accès réservé aux administrateurs'
+    });
+  }
+  next();
+};
+
+const generateToken = (user) => {
+  const userId = user && user.id ? user.id : user;
+  const role = user && user.role ? user.role : undefined;
+  return jwt.sign({ userId, role }, JWT_SECRET, { expiresIn: '24h' });
 };
 
 module.exports = {
   authenticateToken,
+  requireAdmin,
   generateToken,
   JWT_SECRET
 }; 

@@ -3,9 +3,10 @@ const router = express.Router();
 const couponController = require('../controllers/couponController');
 const authRoutes = require('./auth');
 const { deleteAllCoupons } = require('../controllers/couponController');
-const { deleteAllUsers, getAllUsersAPI, deleteUser } = require('../controllers/authController');
+const { deleteAllUsers, getAllUsersAPI, deleteUser, createUser } = require('../controllers/authController');
 const { dropDatabase } = require('../controllers/pageController');
-const { authenticateToken } = require('../middleware/auth');
+const { authenticateToken, requireAdmin } = require('../middleware/auth');
+const gainController = require('../controllers/gainController');
 
 // ==================== AUTH ROUTES ====================
 router.use('/auth', authRoutes);
@@ -24,14 +25,21 @@ router.post('/coupons/code/validate/:id', authenticateToken, couponController.va
 router.post('/coupons/code/invalidate/:id', authenticateToken, couponController.invalidateCouponCode);
 router.put('/coupons/validate/:id', authenticateToken, couponController.validateCoupon);
 router.put('/coupons/invalidate/:id', authenticateToken, couponController.invalidateCoupon);
-router.delete('/coupons/all', authenticateToken, deleteAllCoupons);
+router.delete('/coupons/all', authenticateToken, requireAdmin, deleteAllCoupons);
 router.put('/coupons/:id', authenticateToken, couponController.updateCoupon);
-router.delete('/coupons/:id', authenticateToken, couponController.deleteCoupon);
+router.delete('/coupons/:id', authenticateToken, requireAdmin, couponController.deleteCoupon);
 router.post('/encrypt', authenticateToken, couponController.encryptData);
 
-router.delete('/users', authenticateToken, deleteAllUsers);
-router.get('/users', authenticateToken, getAllUsersAPI);
-router.delete('/users/:id', authenticateToken, deleteUser);
-router.delete('/database', authenticateToken, dropDatabase);
+// Gains (admin)
+// Lecture : tout utilisateur connecté (app mobile). Paiements : admin.
+router.get('/gains', authenticateToken, gainController.getGains);
+router.post('/payments', authenticateToken, requireAdmin, gainController.createPayment);
+router.delete('/payments/:id', authenticateToken, requireAdmin, gainController.deletePayment);
+
+router.post('/users', authenticateToken, requireAdmin, createUser);
+router.get('/users', authenticateToken, requireAdmin, getAllUsersAPI);
+router.delete('/users/:id', authenticateToken, requireAdmin, deleteUser);
+router.delete('/users', authenticateToken, requireAdmin, deleteAllUsers);
+router.delete('/database', authenticateToken, requireAdmin, dropDatabase);
 
 module.exports = router;
