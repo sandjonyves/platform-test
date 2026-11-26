@@ -9,14 +9,18 @@ import {
   Text,
   View,
 } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { couponsApi } from '../api/coupons';
+import { gainsApi } from '../api/gains';
+import { AmountDueCard } from '../components/AmountDueCard';
+import type { MainTabParamList } from '../navigation/types';
 import type { CodeDecision } from '../components/CodeRow';
 import { CouponCard } from '../components/CouponCard';
 import { EmptyState } from '../components/EmptyState';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { subscribeCouponRefresh } from '../services/couponRefresh';
-import type { CodeName, Coupon } from '../types';
+import type { CodeName, Coupon, GainsTotals } from '../types';
 import { colors, spacing } from '../theme';
 
 type ReviewedMap = Record<number, Set<CodeName>>;
@@ -26,9 +30,24 @@ export function HomeScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [reviewedByCoupon, setReviewedByCoupon] = useState<ReviewedMap>({});
+  const [gainTotals, setGainTotals] = useState<GainsTotals | null>(null);
+  const navigation = useNavigation<BottomTabNavigationProp<MainTabParamList>>();
+
+  // Total à payer : rechargé avec la liste, une erreur ici ne bloque pas l'écran.
+  const loadGainTotals = useCallback(async () => {
+    try {
+      const response = await gainsApi.getReport();
+      if (response.success && response.data) {
+        setGainTotals(response.data.totals);
+      }
+    } catch {
+      // silencieux : le bandeau garde la dernière valeur connue
+    }
+  }, []);
 
   const loadCoupons = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
+    loadGainTotals();
     try {
       const response = await couponsApi.getPending();
       if (response.success && response.data) {
@@ -42,7 +61,7 @@ export function HomeScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [loadGainTotals]);
 
   useFocusEffect(
     useCallback(() => {
@@ -79,6 +98,7 @@ export function HomeScreen() {
   );
 
   const handleCouponUpdated = useCallback((updated: Coupon) => {
+    loadGainTotals();
     if (updated.status === 'pending') {
       setCoupons((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
       return;
@@ -90,7 +110,7 @@ export function HomeScreen() {
       delete next[updated.id];
       return next;
     });
-  }, []);
+  }, [loadGainTotals]);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
@@ -104,6 +124,12 @@ export function HomeScreen() {
         subtitle={`${coupons.length} à traiter`}
         onRefresh={onRefresh}
         refreshing={refreshing}
+      />
+
+      <AmountDueCard
+        totals={gainTotals}
+        loading={loading}
+        onPress={() => navigation.navigate('Gains')}
       />
 
       <FlatList
