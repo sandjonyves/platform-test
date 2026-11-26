@@ -633,9 +633,10 @@ const invalidateCoupon = async (req, res) => {
 
 const deleteAllCoupons = async (req, res) => {
   try {
+    // DELETE plutôt que TRUNCATE : sur Postgres managé, le rôle de l'app
+    // a souvent DELETE mais pas le droit TRUNCATE (owner only).
     const deletedCount = await Coupon.destroy({
-      where: {}, // Supprime tous les enregistrements
-      truncate: true // Plus efficace pour vider une table
+      where: {},
     });
     
     res.json({

@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= title %></title>
+    <link rel="icon" type="image/png" href="/images/logo.png" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <link rel="stylesheet" href="/stylesheets/admin.css">
+</head>
+<body>
+    <!-- Accès refusé -->
+    <div id="forbidden" class="card forbidden hidden">
+        <i class="fas fa-lock"></i>
+        <h2>Accès réservé aux administrateurs</h2>
+        <p class="note">Votre compte n'a pas les droits nécessaires pour cette page.</p>
+        <button class="btn" onclick="logout()"><i class="fas fa-sign-out-alt"></i>Se déconnecter</button>
+    </div>
+
+    <div id="app" class="layout hidden">
+        <!-- ================= SIDEBAR ================= -->
+        <aside class="sidebar" id="sidebar">
+            <div class="brand">
+                <div class="brand-logo"><i class="fas fa-shield-halved"></i></div>
+                <div>Plateform-Test<small>Administration</small></div>
+            </div>
+
+            <nav class="nav">
+                <div class="nav-label">Menu</div>
+                <button class="nav-item" data-view="dashboard"><i class="fas fa-chart-pie"></i>Tableau de bord</button>
+                <button class="nav-item" data-view="coupons"><i class="fas fa-ticket"></i>Coupons<span class="nav-badge" id="nav-pending">0</span></button>
+                <button class="nav-item" data-view="gains"><i class="fas fa-coins"></i>Gains</button>
+                <button class="nav-item" data-view="users"><i class="fas fa-users"></i>Utilisateurs</button>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="user-chip">
+                    <div class="avatar" id="userAvatar">?</div>
+                    <div><strong id="userName"></strong><span>Administrateur</span></div>
+                </div>
+                <button class="btn-logout" onclick="logout()"><i class="fas fa-arrow-right-from-bracket"></i> Déconnexion</button>
+            </div>
+        </aside>
+
+        <!-- ================= MAIN ================= -->
+        <div class="main">
+            <header class="topbar">
+                <button class="menu-toggle" onclick="toggleSidebar()" aria-label="Menu"><i class="fas fa-bars"></i></button>
+                <div>
+                    <h1 id="viewTitle">Tableau de bord</h1>
+                    <p id="viewSubtitle"></p>
+                </div>
+                <div class="topbar-actions">
+                    <button class="btn" onclick="refreshAll()"><i class="fas fa-rotate"></i>Actualiser</button>
+                </div>
+            </header>
+
+            <main class="content">
+                <!-- ============ TABLEAU DE BORD ============ -->
+                <section id="view-dashboard" class="view">
+                    <div class="grid kpis">
+                        <div class="card kpi"><div class="kpi-icon tone-primary"><i class="fas fa-ticket"></i></div>
+                            <div><div class="kpi-label">Coupons reçus</div><div class="kpi-value" id="kpi-total">0</div><div class="kpi-sub" id="kpi-total-sub"></div></div></div>
+                        <div class="card kpi"><div class="kpi-icon tone-warning"><i class="fas fa-hourglass-half"></i></div>
+                            <div><div class="kpi-label">En attente</div><div class="kpi-value" id="kpi-pending">0</div><div class="kpi-sub">à traiter</div></div></div>
+                        <div class="card kpi"><div class="kpi-icon tone-success"><i class="fas fa-circle-check"></i></div>
+                            <div><div class="kpi-label">Validés</div><div class="kpi-value" id="kpi-verified">0</div><div class="kpi-sub" id="kpi-rate"></div></div></div>
+                        <div class="card kpi"><div class="kpi-icon tone-danger"><i class="fas fa-circle-xmark"></i></div>
+                            <div><div class="kpi-label">Rejetés</div><div class="kpi-value" id="kpi-invalid">0</div><div class="kpi-sub">codes invalides</div></div></div>
+                        <div class="card kpi highlight"><div class="kpi-icon"><i class="fas fa-coins"></i></div>
+                            <div><div class="kpi-label">Reste à payer</div><div class="kpi-value" id="kpi-due">0 XAF</div><div class="kpi-sub" id="kpi-due-sub"></div></div></div>
+                    </div>
+
+                    <div class="grid two-cols">
+                        <div class="card">
+                            <div class="card-header">
+                                <div><h2>Coupons en attente</h2><p>Les plus récents à traiter</p></div>
+                                <span class="spacer"></span>
+                                <button class="btn btn-sm" onclick="goTo('coupons', 'pending')">Tout voir <i class="fas fa-arrow-right"></i></button>
+                            </div>
+                            <div class="table-wrap"><table>
+                                <thead><tr><th>Coupon</th><th>Client</th><th class="num">Montant</th><th>Reçu le</th><th></th></tr></thead>
+                                <tbody id="dash-pending"></tbody>
+                            </table></div>
+                        </div>
+
+                        <div class="card">
+                            <div class="card-header"><div><h2>Gains</h2><p id="dash-rate-note"></p></div></div>
+                            <div class="card-body">
+                                <ul class="summary-list">
+                                    <li><span>Total des gains</span><strong id="dash-gain-total">0 XAF</strong></li>
+                                    <li><span>Déjà payé</span><strong id="dash-gain-paid" style="color:var(--success)">0 XAF</strong></li>
+                                    <li><span>Reste à payer par le client</span><strong id="dash-gain-due" style="color:var(--primary)">0 XAF</strong></li>
+                                    <li><span>Coupons rémunérés</span><strong id="dash-gain-count">0</strong></li>
+                                    <li><span>Coupons répétés (non comptés)</span><strong id="dash-dup-count">0</strong></li>
+                                </ul>
+                                <div class="progress"><span id="dash-progress" style="width:0%"></span></div>
+                                <div class="note" id="dash-progress-label"></div>
+                                <button class="btn btn-primary" style="margin-top:16px;width:100%;justify-content:center" onclick="goTo('gains')">
+                                    <i class="fas fa-coins"></i>Voir le détail des gains
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ============ COUPONS ============ -->
+                <section id="view-coupons" class="view hidden">
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="segmented" id="couponFilters">
+                                <button data-filter="all" class="active">Tous<span class="count" id="count-all">0</span></button>
+                                <button data-filter="pending">En attente<span class="count" id="count-pending">0</span></button>
+                                <button data-filter="verified">Validés<span class="count" id="count-verified">0</span></button>
+                                <button data-filter="invalid">Rejetés<span class="count" id="count-invalid">0</span></button>
+                            </div>
+                            <span class="spacer"></span>
+                            <label class="search"><i class="fas fa-magnifying-glass"></i><input id="couponSearch" type="search" placeholder="Rechercher (email, code, type, n°)"></label>
+                            <button class="btn btn-ghost-danger" onclick="deleteAllCoupons()"><i class="fas fa-trash"></i>Tout supprimer</button>
+                        </div>
+                        <div class="table-wrap"><table>
+                            <thead><tr><th>N°</th><th>Coupon</th><th>Client</th><th class="num">Montant</th><th>Codes</th><th>Statut</th><th class="num">Gain</th><th>Date</th><th></th></tr></thead>
+                            <tbody id="couponsTable"></tbody>
+                        </table></div>
+                    </div>
+                </section>
+
+                <!-- ============ GAINS ============ -->
+                <section id="view-gains" class="view hidden">
+                    <div class="rule-box">
+                        <i class="fas fa-circle-info" style="margin-top:3px"></i>
+                        <div id="gainRule"></div>
+                    </div>
+
+                    <div class="grid kpis">
+                        <div class="card kpi"><div class="kpi-icon tone-primary"><i class="fas fa-sack-dollar"></i></div>
+                            <div><div class="kpi-label">Total des gains</div><div class="kpi-value" id="g-total">0 XAF</div><div class="kpi-sub" id="g-total-sub"></div></div></div>
+                        <div class="card kpi"><div class="kpi-icon tone-success"><i class="fas fa-hand-holding-dollar"></i></div>
+                            <div><div class="kpi-label">Déjà payé</div><div class="kpi-value" id="g-paid">0 XAF</div><div class="kpi-sub" id="g-paid-sub"></div></div></div>
+                        <div class="card kpi highlight"><div class="kpi-icon"><i class="fas fa-file-invoice-dollar"></i></div>
+                            <div><div class="kpi-label">Total à payer par le client</div><div class="kpi-value" id="g-due">0 XAF</div><div class="kpi-sub" id="g-due-sub"></div></div></div>
+                        <div class="card kpi"><div class="kpi-icon tone-warning"><i class="fas fa-clone"></i></div>
+                            <div><div class="kpi-label">Coupons répétés</div><div class="kpi-value" id="g-dup">0</div><div class="kpi-sub">gain non compté</div></div></div>
+                    </div>
+
+                    <div class="grid two-cols" style="margin-bottom:20px">
+                        <div class="card">
+                            <div class="card-header"><div><h2>Enregistrer un paiement</h2><p>Montant reçu du client. Il couvre les coupons les plus anciens d'abord.</p></div></div>
+                            <div class="card-body">
+                                <form id="paymentForm" class="form-row" style="grid-template-columns: 1fr auto">
+                                    <div class="field"><label for="paymentAmount">Montant payé (XAF)</label>
+                                        <input id="paymentAmount" type="number" min="1" step="1" inputmode="numeric" required placeholder="ex. 4000"></div>
+                                    <div><button class="btn btn-success" type="submit" style="padding:9px 16px"><i class="fas fa-check"></i>Enregistrer</button></div>
+                                </form>
+                                <p class="note" id="paymentHint" style="margin:10px 0 0"></p>
+                            </div>
+                        </div>
+                        <div class="card">
+                            <div class="card-header"><div><h2>Historique des paiements</h2><p id="paymentsCount"></p></div></div>
+                            <div class="table-wrap" style="max-height:220px;overflow-y:auto"><table>
+                                <tbody id="paymentsTable"></tbody>
+                            </table></div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="segmented" id="gainFilters">
+                                <button data-filter="all" class="active">Tous<span class="count" id="gc-all">0</span></button>
+                                <button data-filter="due">À payer<span class="count" id="gc-due">0</span></button>
+                                <button data-filter="paid">Payés<span class="count" id="gc-paid">0</span></button>
+                                <button data-filter="partial">Partiels<span class="count" id="gc-partial">0</span></button>
+                                <button data-filter="duplicate">Répétés<span class="count" id="gc-duplicate">0</span></button>
+                            </div>
+                        </div>
+                        <div class="table-wrap"><table>
+                            <thead><tr><th>N°</th><th>Coupon</th><th>Client</th><th class="num">Montant</th><th>Validé le</th><th class="num">Gain</th><th>Paiement</th></tr></thead>
+                            <tbody id="gainsTable"></tbody>
+                            <tfoot><tr><td colspan="5">Total affiché</td><td class="num" id="gainsFootTotal">0 XAF</td><td id="gainsFootDue"></td></tr></tfoot>
+                        </table></div>
+                    </div>
+                </section>
+
+                <!-- ============ UTILISATEURS ============ -->
+                <section id="view-users" class="view hidden">
+                    <div class="card" style="margin-bottom:20px">
+                        <div class="card-header"><div><h2>Créer un compte</h2><p>L'inscription publique est fermée : les comptes sont créés ici.</p></div></div>
+                        <div class="card-body">
+                            <form id="createUserForm" class="form-row">
+                                <div class="field"><label for="newUsername">Nom d'utilisateur</label><input id="newUsername" required autocomplete="off"></div>
+                                <div class="field"><label for="newPassword">Mot de passe (6 caractères min.)</label><input id="newPassword" type="password" minlength="6" required autocomplete="new-password"></div>
+                                <div class="field"><label for="newRole">Rôle</label>
+                                    <select id="newRole"><option value="user">Opérateur</option><option value="admin">Administrateur</option></select></div>
+                                <div><button class="btn btn-primary" type="submit" style="width:100%;justify-content:center;padding:9px"><i class="fas fa-user-plus"></i>Créer le compte</button></div>
+                            </form>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header"><div><h2>Comptes</h2><p id="usersCount"></p></div></div>
+                        <div class="table-wrap"><table>
+                            <thead><tr><th>Utilisateur</th><th>Rôle</th><th>Créé le</th><th></th></tr></thead>
+                            <tbody id="usersTable"></tbody>
+                        </table></div>
+                    </div>
+                </section>
+            </main>
+        </div>
+    </div>
+
+    <!-- Drawer détail coupon -->
+    <div id="drawerOverlay" class="overlay hidden" onclick="closeDrawer()"></div>
+    <aside id="drawer" class="drawer hidden" aria-modal="true" role="dialog">
+        <div class="drawer-header">
+            <h3 id="drawerTitle">Coupon</h3>
+            <span id="drawerStatus"></span>
+            <button class="close-btn" onclick="closeDrawer()" aria-label="Fermer"><i class="fas fa-xmark"></i></button>
+        </div>
+        <div class="drawer-body" id="drawerBody"></div>
+        <div class="drawer-footer" id="drawerFooter"></div>
+    </aside>
+
+    <!-- Modal confirmation -->
+    <div id="modalOverlay" class="overlay hidden" onclick="closeModal()"></div>
+    <div id="modal" class="modal hidden" role="alertdialog">
+        <h3 id="modalTitle"></h3>
+        <p id="modalMessage"></p>
+        <div class="modal-actions">
+            <button class="btn" onclick="closeModal()">Annuler</button>
+            <button class="btn btn-danger" id="modalConfirm">Confirmer</button>
+        </div>
+    </div>
+
+    <div class="toasts" id="toasts"></div>
+
+    <script src="/javascripts/auth.js"></script>
+    <script>
+        // ==================== ÉTAT ====================
+        const state = {
+            me: null,
+            coupons: [],
+            gains: { rate: 40, items: [], totals: {} },
+            gainById: new Map(),
+            users: [],
+            couponFilter: 'all',
+            couponSearch: '',
+            gainFilter: 'all',
+            view: 'dashboard'
+        };
+
+        const VIEWS = {
+            dashboard: ['Tableau de bord', "Vue d'ensemble de l'activité"],
+            coupons: ['Coupons', 'Vérification et traitement des coupons reçus'],
+            gains: ['Gains', 'Gains générés par les coupons validés'],
+            users: ['Utilisateurs', 'Gestion des comptes opérateurs et administrateurs']
+        };
+
+        // ==================== UTILITAIRES ====================
+        const $ = (id) => document.getElementById(id);
+
+        function esc(value) {
+            return String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        }
+        const xaf = (n) => `${Math.round(Number(n) || 0).toLocaleString('fr-FR')} XAF`;
+        const currency = (d) => (d === 'EURO' ? '€' : '$');
+        const money = (c) => `${Number(c.montant).toLocaleString('fr-FR', { maximumFractionDigits: 2 })} ${currency(c.devise)}`;
+        const fmtDate = (d) => d ? new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+        const fmtDateTime = (d) => d ? new Date(d).toLocaleString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
+        const codesOf = (c) => [1, 2, 3, 4].map(n => ({ n, value: c[`code${n}`], valid: c[`code${n}Valid`] })).filter(x => x.value);
+
+        const STATUS = {
+            pending: ['En attente', 'tone-warning'],
+            verified: ['Validé', 'tone-success'],
+            invalid: ['Rejeté', 'tone-danger']
+        };
+        const statusBadge = (s) => { const [label, tone] = STATUS[s] || STATUS.pending; return `<span class="badge ${tone}">${label}</span>`; };
+
+        function toast(message, ok = true) {
+            const el = document.createElement('div');
+            el.className = `toast ${ok ? 'success' : 'error'}`;
+            el.innerHTML = `<i class="fas ${ok ? 'fa-circle-check' : 'fa-triangle-exclamation'}"></i><span></span>`;
+            el.querySelector('span').textContent = message;
+            $('toasts').appendChild(el);
+            setTimeout(() => el.remove(), 4500);
+        }
+
+        async function api(url, options = {}) {
+            const response = await window.authManager.authenticatedRequest(url, options);
+            const data = await response.json().catch(() => ({}));
+            if (response.status === 401) window.authManager.logout();
+            return { ok: response.ok && data.success !== false, data };
+        }
+
+        // ==================== DÉMARRAGE ====================
+        document.addEventListener('DOMContentLoaded', async () => {
+            if (!window.authManager.isAuthenticated()) {
+                window.location.href = '/login';
+                return;
+            }
+            const profile = await window.authManager.getProfile();
+            const me = (profile && profile.success && profile.data.user) || window.authManager.getCurrentUser();
+            if (!me || me.role !== 'admin') {
+                $('forbidden').classList.remove('hidden');
+                return;
+            }
+            state.me = me;
+            $('userName').textContent = me.username;
+            $('userAvatar').textContent = (me.username || '?').charAt(0).toUpperCase();
+            $('app').classList.remove('hidden');
+
+            document.querySelectorAll('.nav-item').forEach(b => b.addEventListener('click', () => goTo(b.dataset.view)));
+            bindSegmented('couponFilters', f => { state.couponFilter = f; renderCoupons(); });
+            bindSegmented('gainFilters', f => { state.gainFilter = f; renderGains(); });
+            $('couponSearch').addEventListener('input', e => { state.couponSearch = e.target.value.trim().toLowerCase(); renderCoupons(); });
+            $('createUserForm').addEventListener('submit', createUser);
+            $('paymentForm').addEventListener('submit', submitPayment);
+            document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal(); closeDrawer(); } });
+
+            const initial = location.hash.replace('#', '');
+            goTo(VIEWS[initial] ? initial : 'dashboard');
+            await refreshAll();
+        });
+
+        function bindSegmented(id, onChange) {
+            $(id).querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+                setSegmented(id, b.dataset.filter);
+                onChange(b.dataset.filter);
+            }));
+        }
+        function setSegmented(id, filter) {
+            $(id).querySelectorAll('button').forEach(x => x.classList.toggle('active', x.dataset.filter === filter));
+        }
+
+        function goTo(view, couponFilter) {
+            state.view = view;
+            document.querySelectorAll('.view').forEach(v => v.classList.toggle('hidden', v.id !== `view-${view}`));
+            document.querySelectorAll('.nav-item').forEach(b => b.classList.toggle('active', b.dataset.view === view));
+            $('viewTitle').textContent = VIEWS[view][0];
+            $('viewSubtitle').textContent = VIEWS[view][1];
+            history.replaceState(null, '', `#${view}`);
+            if (couponFilter) {
+                state.couponFilter = couponFilter;
+                setSegmented('couponFilters', couponFilter);
+                renderCoupons();
+            }
+            $('sidebar').classList.remove('open');
+        }
+        function toggleSidebar() { $('sidebar').classList.toggle('open'); }
+
+        async function refreshAll() {
+            await Promise.all([loadCoupons(), loadGains(), loadUsers()]);
+        }
+
+        // ==================== CHARGEMENT ====================
+        async function loadCoupons() {
+            const { ok, data } = await api('/api/coupons');
+            if (!ok) return toast(data.message || 'Impossible de charger les coupons', false);
+            state.coupons = data.data || [];
+            renderCoupons();
+            renderDashboard();
+        }
+
+        async function loadGains() {
+            const { ok, data } = await api('/api/gains');
+            if (!ok) return toast(data.message || 'Impossible de charger les gains', false);
+            state.gains = data.data;
+            state.gainById = new Map(state.gains.items.map(i => [i.id, i]));
+            renderGains();
+            renderCoupons();
+            renderDashboard();
+        }
+
+        async function loadUsers() {
+            const { ok, data } = await api('/api/users');
+            if (!ok) return toast(data.message || 'Impossible de charger les utilisateurs', false);
+            state.users = data.data || [];
+            renderUsers();
+        }
+
+        // Après une action sur un coupon : statuts et gains changent ensemble
+        async function reloadCouponsAndGains() {
+            await Promise.all([loadCoupons(), loadGains()]);
+        }
+
+        // ==================== TABLEAU DE BORD ====================
+        function renderDashboard() {
+            const c = state.coupons;
+            const count = (s) => c.filter(x => x.status === s).length;
+            const pending = count('pending'), verified = count('verified'), invalid = count('invalid');
+            const treated = verified + invalid;
+            const t = state.gains.totals || {};
+
+            $('kpi-total').textContent = c.length;
+            $('kpi-total-sub').textContent = `${treated} traité(s)`;
+            $('kpi-pending').textContent = pending;
+            $('kpi-verified').textContent = verified;
+            $('kpi-rate').textContent = treated ? `${Math.round(verified / treated * 100)} % de réussite` : '—';
+            $('kpi-invalid').textContent = invalid;
+            $('kpi-due').textContent = xaf(t.due);
+            $('kpi-due-sub').textContent = `sur ${xaf(t.totalGain)} de gains`;
+            $('nav-pending').textContent = pending;
+            $('nav-pending').classList.toggle('hidden', pending === 0);
+
+            $('dash-rate-note').textContent = `${state.gains.rate} XAF par unité de montant · 100 € = ${xaf(state.gains.rate * 100)}`;
+            $('dash-gain-total').textContent = xaf(t.totalGain);
+            $('dash-gain-paid').textContent = xaf(t.paid);
+            $('dash-gain-due').textContent = xaf(t.due);
+            $('dash-gain-count').textContent = t.gainCount || 0;
+            $('dash-dup-count').textContent = t.duplicateCount || 0;
+            const pct = t.totalGain ? Math.round(t.paid / t.totalGain * 100) : 0;
+            $('dash-progress').style.width = `${pct}%`;
+            $('dash-progress-label').textContent = t.totalGain ? `${pct} % des gains déjà payés` : 'Aucun gain pour le moment';
+
+            const recent = c.filter(x => x.status === 'pending')
+                .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 6);
+            $('dash-pending').innerHTML = recent.length ? recent.map(x => `
+                <tr>
+                    <td><div class="cell-main">${esc(x.type)}</div><div class="cell-sub">#${x.id}</div></td>
+                    <td>${esc(x.email)}</td>
+                    <td class="num">${money(x)}</td>
+                    <td>${fmtDate(x.createdAt)}</td>
+                    <td class="actions"><button class="btn btn-sm" onclick="openCoupon(${x.id})">Traiter</button></td>
+                </tr>`).join('')
+                : `<tr><td colspan="5"><div class="empty"><i class="fas fa-mug-hot"></i>Aucun coupon en attente</div></td></tr>`;
+        }
+
+        // ==================== COUPONS ====================
+        function gainCell(couponId) {
+            const g = state.gainById.get(couponId);
+            if (!g) return '<span class="cell-sub">—</span>';
+            if (g.duplicate) return `<span class="badge plain tone-warning" title="Code déjà validé dans le coupon #${g.duplicateOf}">Répété</span>`;
+            return `<strong>${xaf(g.gain)}</strong>`;
+        }
+
+        function renderCoupons() {
+            const all = state.coupons;
+            ['pending', 'verified', 'invalid'].forEach(s => { $(`count-${s}`).textContent = all.filter(c => c.status === s).length; });
+            $('count-all').textContent = all.length;
+
+            const q = state.couponSearch;
+            const rows = all
+                .filter(c => state.couponFilter === 'all' || c.status === state.couponFilter)
+                .filter(c => !q || [c.id, c.email, c.type, c.code1, c.code2, c.code3, c.code4].some(v => String(v ?? '').toLowerCase().includes(q)));
+
+            $('couponsTable').innerHTML = rows.length ? rows.map(c => {
+                const codes = codesOf(c);
+                const validCount = codes.filter(x => x.valid).length;
+                return `
+                <tr>
+                    <td class="mono">#${c.id}</td>
+                    <td class="cell-main">${esc(c.type)}</td>
+                    <td>${esc(c.email)}</td>
+                    <td class="num">${money(c)}</td>
+                    <td><span class="cell-sub">${validCount}/${codes.length} valide(s)</span></td>
+                    <td>${statusBadge(c.status)}</td>
+                    <td class="num">${gainCell(c.id)}</td>
+                    <td>${fmtDate(c.createdAt)}</td>
+                    <td class="actions"><button class="btn btn-sm" onclick="openCoupon(${c.id})"><i class="fas fa-eye"></i>Gérer</button></td>
+                </tr>`;
+            }).join('') : `<tr><td colspan="9"><div class="empty"><i class="fas fa-inbox"></i>Aucun coupon</div></td></tr>`;
+        }
+
+        let drawerCouponId = null;
+        function openCoupon(id) {
+            const c = state.coupons.find(x => x.id === id);
+            if (!c) return;
+            drawerCouponId = id;
+            const g = state.gainById.get(id);
+            $('drawerTitle').textContent = `Coupon #${c.id} · ${c.type}`;
+            $('drawerStatus').innerHTML = statusBadge(c.status);
+
+            let gainInfo = '—';
+            if (g && g.duplicate) gainInfo = `0 XAF (répété du coupon #${g.duplicateOf})`;
+            else if (g) gainInfo = `${xaf(g.gain)} · ${g.paid ? 'payé' : g.partial ? `${xaf(g.paidAmount)} payé` : 'à payer'}`;
+
+            $('drawerBody').innerHTML = `
+                <dl class="detail-grid">
+                    <div><dt>Client</dt><dd>${esc(c.email)}</dd></div>
+                    <div><dt>Montant</dt><dd>${money(c)}</dd></div>
+                    <div><dt>Reçu le</dt><dd>${fmtDateTime(c.createdAt)}</dd></div>
+                    <div><dt>Traité le</dt><dd>${fmtDateTime(c.verificationDate)}</dd></div>
+                    <div><dt>Gain</dt><dd>${gainInfo}</dd></div>
+                </dl>
+                <p class="section-title">Codes</p>
+                ${codesOf(c).map(x => `
+                    <div class="code-row">
+                        <span class="cell-sub">Code ${x.n}</span>
+                        <span class="mono">${esc(x.value)}</span>
+                        ${x.valid ? '<span class="badge tone-success">Valide</span>' : ''}
+                        <button class="btn btn-sm btn-icon" title="Valider ce code" onclick="codeAction(${c.id}, 'code${x.n}', true)"><i class="fas fa-check" style="color:var(--success)"></i></button>
+                        <button class="btn btn-sm btn-icon" title="Rejeter ce code" onclick="codeAction(${c.id}, 'code${x.n}', false)"><i class="fas fa-xmark" style="color:var(--danger)"></i></button>
+                    </div>`).join('')}`;
+
+            $('drawerFooter').innerHTML = `
+                ${c.status === 'pending' ? `
+                    <button class="btn btn-success" onclick="couponAction(${c.id}, true)"><i class="fas fa-circle-check"></i>Valider le coupon</button>
+                    <button class="btn btn-ghost-danger" onclick="couponAction(${c.id}, false)"><i class="fas fa-circle-xmark"></i>Rejeter</button>` : ''}
+                <button class="btn" onclick="sendEmail(${c.id})"><i class="fas fa-envelope"></i>Envoyer l'email</button>
+                <span style="flex:1"></span>
+                <button class="btn btn-ghost-danger" onclick="deleteCoupon(${c.id})"><i class="fas fa-trash"></i></button>`;
+
+            $('drawerOverlay').classList.remove('hidden');
+            $('drawer').classList.remove('hidden');
+        }
+        function closeDrawer() {
+            drawerCouponId = null;
+            $('drawerOverlay').classList.add('hidden');
+            $('drawer').classList.add('hidden');
+        }
+        async function afterCouponChange() {
+            const id = drawerCouponId;
+            await reloadCouponsAndGains();
+            if (id && state.coupons.some(c => c.id === id)) openCoupon(id);
+        }
+
+        async function codeAction(id, codeName, valid) {
+            const url = `/api/coupons/code/${valid ? 'validate' : 'invalidate'}/${id}`;
+            const body = valid ? { codeName, codeValue: 'dummy' } : { codeName };
+            const response = await window.authManager.authenticatedRequest(url, { method: 'POST', body });
+            const data = await response.json().catch(() => ({}));
+            toast(response.ok ? `${codeName} ${valid ? 'validé' : 'rejeté'}` : (data.error || data.message || 'Erreur'), response.ok);
+            if (response.ok) afterCouponChange();
+        }
+
+        async function couponAction(id, valid) {
+            const { ok, data } = await api(`/api/coupons/${valid ? 'validate' : 'invalidate'}/${id}`, { method: 'PUT' });
+            toast(data.message || (ok ? 'Coupon mis à jour' : 'Erreur'), ok && data.reason !== 'Tous les codes sont invalides');
+            if (ok) afterCouponChange();
+        }
+
+        async function sendEmail(id) {
+            const { ok, data } = await api(`/api/coupons/${id}/send-received-email`, { method: 'POST' });
+            toast(ok ? `Email envoyé pour le coupon #${id}` : (data.message || 'Erreur lors de l\'envoi'), ok);
+        }
+
+        function deleteCoupon(id) {
+            confirmAction('Supprimer le coupon', `Le coupon #${id} sera définitivement supprimé.`, async () => {
+                const { ok, data } = await api(`/api/coupons/${id}`, { method: 'DELETE' });
+                toast(ok ? `Coupon #${id} supprimé` : data.message, ok);
+                closeDrawer();
+                reloadCouponsAndGains();
+            });
+        }
+
+        function deleteAllCoupons() {
+            confirmAction('Supprimer tous les coupons', 'TOUS les coupons et leurs gains seront définitivement supprimés.', async () => {
+                const { ok, data } = await api('/api/coupons/all', { method: 'DELETE' });
+                toast(ok ? `${data.deletedCount ?? 0} coupon(s) supprimé(s)` : data.message, ok);
+                reloadCouponsAndGains();
+            });
+        }
+
+        // ==================== GAINS ====================
+        function renderGains() {
+            const { rate, items, totals: t } = state.gains;
+            const payments = state.gains.payments || [];
+            $('gainRule').innerHTML = `Chaque coupon <strong>validé</strong> rapporte <strong>${rate} XAF par unité</strong> de montant
+                (100 € → ${xaf(rate * 100)}, 50 $ → ${xaf(rate * 50)}). Un coupon dont un code a déjà été validé dans un coupon
+                précédent est <strong>répété</strong> : il ne rapporte rien. Les paiements couvrent les coupons les plus anciens d'abord.`;
+
+            const dueItems = items.filter(i => i.gain > 0 && !i.paid);
+            $('g-total').textContent = xaf(t.totalGain);
+            $('g-total-sub').textContent = `${t.gainCount || 0} coupon(s) rémunéré(s)`;
+            $('g-paid').textContent = xaf(t.paid);
+            $('g-paid-sub').textContent = `${payments.length} paiement(s) reçu(s)`;
+            $('g-due').textContent = xaf(t.due);
+            $('g-due-sub').textContent = `${dueItems.length} coupon(s) non soldé(s)`;
+            $('g-dup').textContent = t.duplicateCount || 0;
+
+            $('paymentHint').textContent = t.due > 0 ? `Reste à payer : ${xaf(t.due)}` : 'Tout est payé.';
+            $('paymentsCount').textContent = `${payments.length} paiement(s) · ${xaf(t.paymentsTotal || 0)}`;
+            $('paymentsTable').innerHTML = payments.length ? payments.map(p => `
+                <tr>
+                    <td><div class="cell-main">${xaf(p.amount)}</div><div class="cell-sub">${fmtDateTime(p.createdAt)}${p.createdByName ? ' · ' + esc(p.createdByName) : ''}</div></td>
+                    <td class="actions"><button class="btn btn-sm btn-ghost-danger" title="Supprimer ce paiement" onclick="deletePayment(${p.id}, ${p.amount})"><i class="fas fa-trash"></i></button></td>
+                </tr>`).join('')
+                : `<tr><td><div class="empty" style="padding:20px"><i class="fas fa-receipt"></i>Aucun paiement enregistré</div></td></tr>`;
+
+            const groups = {
+                all: items,
+                due: dueItems,
+                paid: items.filter(i => i.paid),
+                partial: items.filter(i => i.partial),
+                duplicate: items.filter(i => i.duplicate)
+            };
+            Object.keys(groups).forEach(k => { $(`gc-${k}`).textContent = groups[k].length; });
+
+            const rows = groups[state.gainFilter] || items;
+            $('gainsTable').innerHTML = rows.length ? rows.map(i => {
+                let payment;
+                if (i.duplicate) payment = `<span class="badge tone-warning">Répété du #${i.duplicateOf}</span>`;
+                else if (i.paid) payment = `<span class="badge tone-success">Payé</span>`;
+                else if (i.partial) payment = `<span class="badge tone-primary">Partiel</span> <span class="cell-sub">${xaf(i.paidAmount)} payé</span>`;
+                else payment = `<span class="badge tone-info">À payer</span>`;
+                return `
+                <tr>
+                    <td class="mono">#${i.id}</td>
+                    <td class="cell-main">${esc(i.type)}</td>
+                    <td>${esc(i.email)}</td>
+                    <td class="num">${money(i)}</td>
+                    <td>${fmtDate(i.verificationDate)}</td>
+                    <td class="num"><strong style="${i.duplicate ? 'color:var(--muted);text-decoration:line-through' : ''}">${xaf(i.duplicate ? i.montant * rate : i.gain)}</strong></td>
+                    <td>${payment}</td>
+                </tr>`;
+            }).join('') : `<tr><td colspan="7"><div class="empty"><i class="fas fa-coins"></i>Aucun gain dans cette catégorie</div></td></tr>`;
+
+            const shownTotal = rows.reduce((s, i) => s + i.gain, 0);
+            const shownDue = rows.reduce((s, i) => s + (i.gain - i.paidAmount), 0);
+            $('gainsFootTotal').textContent = xaf(shownTotal);
+            $('gainsFootDue').textContent = shownDue ? `dont ${xaf(shownDue)} à payer` : '';
+        }
+
+        async function submitPayment(e) {
+            e.preventDefault();
+            const amount = Number($('paymentAmount').value);
+            const due = state.gains.totals.due;
+            if (!Number.isInteger(amount) || amount <= 0) return toast('Entrez un montant entier positif', false);
+            if (amount > due) return toast(`Le montant dépasse le reste à payer (${xaf(due)})`, false);
+            confirmAction('Enregistrer un paiement', `Le client a payé ${xaf(amount)} ? Reste à payer après : ${xaf(due - amount)}.`,
+                async () => {
+                    const { ok, data } = await api('/api/payments', { method: 'POST', body: { amount } });
+                    toast(data.message || 'Erreur', ok);
+                    if (ok) { $('paymentAmount').value = ''; loadGains(); }
+                }, 'Enregistrer', 'btn-success');
+        }
+
+        function deletePayment(id, amount) {
+            confirmAction('Supprimer le paiement', `Le paiement de ${xaf(amount)} sera supprimé et le reste à payer augmentera d'autant.`,
+                async () => {
+                    const { ok, data } = await api(`/api/payments/${id}`, { method: 'DELETE' });
+                    toast(data.message || 'Erreur', ok);
+                    if (ok) loadGains();
+                });
+        }
+
+        // ==================== UTILISATEURS ====================
+        function renderUsers() {
+            const users = state.users;
+            $('usersCount').textContent = `${users.length} compte(s) · ${users.filter(u => u.role === 'admin').length} administrateur(s)`;
+            $('usersTable').innerHTML = users.map(u => `
+                <tr>
+                    <td><div style="display:flex;align-items:center;gap:10px">
+                        <div class="avatar" style="background:${u.role === 'admin' ? '#4f46e5' : '#9ca3af'}">${esc(u.username.charAt(0).toUpperCase())}</div>
+                        <div><div class="cell-main">${esc(u.username)}</div><div class="cell-sub">ID ${u.id}</div></div></div></td>
+                    <td>${u.role === 'admin' ? '<span class="badge tone-primary">Administrateur</span>' : '<span class="badge tone-info">Opérateur</span>'}</td>
+                    <td>${fmtDate(u.createdAt)}</td>
+                    <td class="actions">${state.me && state.me.id === u.id ? '<span class="cell-sub">Vous</span>'
+                        : `<button class="btn btn-sm btn-ghost-danger" data-id="${u.id}" data-name="${esc(u.username)}" onclick="deleteUser(Number(this.dataset.id), this.dataset.name)"><i class="fas fa-trash"></i>Supprimer</button>`}</td>
+                </tr>`).join('');
+        }
+
+        async function createUser(e) {
+            e.preventDefault();
+            const username = $('newUsername').value.trim();
+            const body = { username, password: $('newPassword').value, role: $('newRole').value };
+            const { ok, data } = await api('/api/users', { method: 'POST', body });
+            toast(ok ? `Compte « ${username} » créé` : (data.message || 'Erreur'), ok);
+            if (ok) { e.target.reset(); loadUsers(); }
+        }
+
+        function deleteUser(id, name) {
+            confirmAction('Supprimer le compte', `Le compte « ${name} » sera définitivement supprimé.`, async () => {
+                const { ok, data } = await api(`/api/users/${id}`, { method: 'DELETE' });
+                toast(ok ? `Compte « ${name} » supprimé` : data.message, ok);
+                loadUsers();
+            });
+        }
+
+        // ==================== MODAL ====================
+        function confirmAction(title, message, onConfirm, label = 'Supprimer', tone = 'btn-danger') {
+            $('modalTitle').textContent = title;
+            $('modalMessage').textContent = message;
+            const old = $('modalConfirm');
+            const btn = old.cloneNode(true);
+            btn.textContent = label;
+            btn.className = `btn ${tone}`;
+            old.replaceWith(btn);
+            btn.addEventListener('click', async () => {
+                btn.disabled = true;
+                await onConfirm();
+                closeModal();
+            });
+            $('modalOverlay').classList.remove('hidden');
+            $('modal').classList.remove('hidden');
+        }
+        function closeModal() {
+            $('modalOverlay').classList.add('hidden');
+            $('modal').classList.add('hidden');
+        }
+
+        function logout() { window.authManager.logout(); }
+    </script>
+</body>
+</html>
