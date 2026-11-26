@@ -7,6 +7,7 @@ import { useAuth } from '../context/AuthContext';
 import { LoginScreen } from '../screens/LoginScreen';
 import { HomeScreen } from '../screens/HomeScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
+import { GainsScreen } from '../screens/GainsScreen';
 import { setupNotificationHandlers } from '../services/notifications';
 import type {
   AuthStackParamList,
@@ -66,6 +67,16 @@ function MainTabs() {
           title: 'Accueil',
           tabBarIcon: ({ color, size }) => (
             <Icon name="home" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="Gains"
+        component={GainsScreen}
+        options={{
+          title: 'Paiements',
+          tabBarIcon: ({ color, size }) => (
+            <Icon name="payments" size={size} color={color} />
           ),
         }}
       />
