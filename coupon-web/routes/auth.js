@@ -2,7 +2,6 @@ const express = require('express');
 const router = express.Router();
 const authController = require('../controllers/authController');
 const { authenticateToken } = require('../middleware/auth');
-const { getAllUsers } = require('../controllers/authController');
 
 // Public routes
 router.post('/register', authController.register);
@@ -13,7 +12,8 @@ router.post('/logout', authenticateToken, authController.logout);
 router.get('/profile', authenticateToken, authController.getProfile);
 router.put('/profile', authenticateToken, authController.updateProfile);
 
-// Route pour afficher tous les utilisateurs (admin)
-router.get('/admin/users', getAllUsers);
+router.get('/admin/users', (req, res) => {
+  res.redirect('/admin');
+});
 
 module.exports = router; 

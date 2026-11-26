@@ -190,7 +190,16 @@ class AuthManager {
       }
     };
 
-    const finalOptions = { ...defaultOptions, ...options };
+    // Fusionner les headers : un `headers` dans options ne doit pas
+    // écraser Authorization (sinon DELETE/PUT partent sans jeton → 401).
+    const finalOptions = {
+      ...defaultOptions,
+      ...options,
+      headers: {
+        ...defaultOptions.headers,
+        ...(options.headers || {}),
+      },
+    };
     
     if (finalOptions.body && typeof finalOptions.body === 'object') {
       finalOptions.body = JSON.stringify(finalOptions.body);
@@ -213,7 +222,7 @@ window.authManager = new AuthManager();
 
 // Auto-redirect if not authenticated on protected pages
 document.addEventListener('DOMContentLoaded', function() {
-  const protectedPages = ['/profile', '/dashboard'];
+  const protectedPages = ['/profile', '/dashboard', '/admin'];
   const currentPath = window.location.pathname;
   
   if (protectedPages.includes(currentPath) && !window.authManager.isAuthenticated()) {

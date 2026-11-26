@@ -1,53 +1,57 @@
 const { User } = require('../models');
 const { generateToken } = require('../middleware/auth');
 
-// Register a new user
+// L'inscription publique est fermée : les comptes sont créés par un admin.
 const register = async (req, res) => {
-  try {
-    const { username, password, fcmToken } = req.body;
+  return res.status(403).json({
+    success: false,
+    message: 'L\'inscription publique est fermée. Un administrateur doit créer le compte.'
+  });
+};
 
-    // Validate input
+const createUser = async (req, res) => {
+  try {
+    const { username, password, role } = req.body;
+
     if (!username || !password) {
       return res.status(400).json({
         success: false,
-        message: 'Username and password are required'
+        message: 'Le nom d\'utilisateur et le mot de passe sont requis'
       });
     }
 
-    // Check if username already exists
+    if (String(password).length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'Le mot de passe doit contenir au moins 6 caractères'
+      });
+    }
+
+    const assignedRole = role === 'admin' ? 'admin' : 'user';
     const existingUser = await User.findOne({ where: { username } });
     if (existingUser) {
       return res.status(409).json({
         success: false,
-        message: 'Username already exists'
+        message: 'Ce nom d\'utilisateur existe déjà'
       });
     }
 
-    // Create new user
     const user = await User.create({
       username,
       password,
-      fcmToken: fcmToken || null,
+      role: assignedRole
     });
-
-    // Generate JWT token
-    const token = generateToken(user.id);
 
     res.status(201).json({
       success: true,
-      message: 'User registered successfully',
-      data: {
-        user: user.toJSON(),
-        token
-      }
+      message: 'Utilisateur créé',
+      data: user.toJSON()
     });
-
   } catch (error) {
-    console.error('Registration error:', error);
+    console.error('Create user error:', error);
     res.status(500).json({
       success: false,
-      message: 'Internal server error',
-      error: error.message
+      message: 'Erreur lors de la création de l\'utilisateur'
     });
   }
 };
@@ -89,7 +93,7 @@ const login = async (req, res) => {
     }
 
     // Generate JWT token
-    const token = generateToken(user.id);
+    const token = generateToken(user);
 
     res.json({
       success: true,
@@ -198,18 +202,6 @@ const updateProfile = async (req, res) => {
   }
 };
 
-// Get all users (for admin page)
-const getAllUsers = async (req, res) => {
-  try {
-    const users = await User.findAll();
-    const usersWithoutPasswords = users.map(u => u.toJSON());
-    res.render('admin-users', { users: usersWithoutPasswords });
-  } catch (error) {
-    console.error('Get all users error:', error);
-    res.status(500).render('error', { message: 'Erreur lors de la récupération des utilisateurs', error });
-  }
-};
-
 // Get all users via API
 const getAllUsersAPI = async (req, res) => {
   try {
@@ -245,6 +237,23 @@ const deleteUser = async (req, res) => {
       });
     }
 
+    if (req.user && user.id === req.user.id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Vous ne pouvez pas supprimer votre propre compte'
+      });
+    }
+
+    if (user.role === 'admin') {
+      const adminCount = await User.count({ where: { role: 'admin' } });
+      if (adminCount <= 1) {
+        return res.status(400).json({
+          success: false,
+          message: 'Impossible de supprimer le dernier administrateur'
+        });
+      }
+    }
+
     await user.destroy();
     
     res.json({
@@ -262,13 +271,10 @@ const deleteUser = async (req, res) => {
 
 // Delete all users
 const deleteAllUsers = async (req, res) => {
-  try {
-    await User.destroy({ where: {} });
-    res.json({ success: true, message: 'Tous les utilisateurs ont été supprimés.' });
-  } catch (error) {
-    console.error('Erreur lors de la suppression des utilisateurs:', error);
-    res.status(500).json({ success: false, message: 'Erreur lors de la suppression des utilisateurs', error });
-  }
+  return res.status(403).json({
+    success: false,
+    message: 'La suppression de tous les utilisateurs est désactivée'
+  });
 };
 
 module.exports = {
@@ -277,8 +283,8 @@ module.exports = {
   logout,
   getProfile,
   updateProfile,
-  getAllUsers,
   getAllUsersAPI,
+  createUser,
   deleteUser,
   deleteAllUsers
 }; 
