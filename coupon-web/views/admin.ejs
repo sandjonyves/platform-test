@@ -671,14 +671,25 @@
             $('modalTitle').textContent = title;
             $('modalMessage').textContent = message;
             const old = $('modalConfirm');
+            // Copie du bouton pour retirer l'ancien écouteur ; on le réactive,
+            // sinon le « disabled » de l'action précédente est recopié et le
+            // bouton ne répond plus jusqu'au rechargement de la page.
             const btn = old.cloneNode(true);
+            btn.disabled = false;
             btn.textContent = label;
             btn.className = `btn ${tone}`;
             old.replaceWith(btn);
             btn.addEventListener('click', async () => {
                 btn.disabled = true;
-                await onConfirm();
-                closeModal();
+                try {
+                    await onConfirm();
+                } catch (error) {
+                    console.error(error);
+                    toast('Une erreur est survenue', false);
+                } finally {
+                    btn.disabled = false;
+                    closeModal();
+                }
             });
             $('modalOverlay').classList.remove('hidden');
             $('modal').classList.remove('hidden');
